@@ -12,6 +12,7 @@ require_relative "media"
 require_relative "page_map"
 require_relative "property_set"
 require_relative "schema"
+require_relative "status"
 require_relative "uploader"
 require_relative "users"
 
@@ -170,18 +171,22 @@ module NotionPublish
     end
 
     # The recorded entry for this document, unless its page has gone. An entry
-    # pointing at a page that no longer exists is stale rather than fatal:
-    # forget it and publish afresh.
+    # pointing at a page that no longer exists, or that someone moved to the
+    # trash, is stale rather than fatal: forget it and publish afresh.
     def live_entry(job)
       entry = job.map&.entry(job.source)
       return nil unless entry
+      return entry unless Status.trashed?(@client.get("/v1/pages/#{entry.id}"))
 
-      @client.get("/v1/pages/#{entry.id}")
-      entry
+      forget(job, entry, "is in Notion's trash")
     rescue ApiError => e
       raise unless e.not_found?
 
-      job.warnings << "#{entry.url} is gone from Notion. Publishing a new page and forgetting the old entry."
+      forget(job, entry, "is gone from Notion")
+    end
+
+    def forget(job, entry, why)
+      job.warnings << "#{entry.url} #{why}. Publishing a new page and forgetting the old entry."
       job.map.forget(job.source)
       nil
     end

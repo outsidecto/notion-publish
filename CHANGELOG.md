@@ -15,6 +15,12 @@ All notable changes to this project are recorded here. The format follows
   `--properties-json`), `title_override` (`--title`), and `keep_h1` (`--keep-h1`), so `republish`
   can repeat what the last publish of each file did.
 
+### Fixed
+
+- A page deleted in Notion sits in the trash, where the API still returns it. `status` reported
+  such a page as in sync or changed in Notion, and publishing tried to update it. `status` now
+  reports "page is in Notion's trash", and publishing forgets the entry and creates a new page.
+
 ### Changed
 
 - `status` groups documents by state, lists the ones in sync, and counts files that were never

@@ -15,7 +15,7 @@ module NotionPublish
       # Problems first, then what is in sync, then what was never published.
       ORDER = (NotionPublish::Status::ACTIONABLE + %i[unchanged unpublished]).freeze
       # States where the page itself is what needs looking at.
-      SHOW_URL = %i[drifted diverged missing orphaned].freeze
+      SHOW_URL = %i[drifted diverged missing trashed orphaned].freeze
 
       def call(dir)
         map = page_map_in(dir)

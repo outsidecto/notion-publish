@@ -18,12 +18,13 @@ module NotionPublish
       drifted: "changed in Notion",
       diverged: "changed in both",
       missing: "page is gone from Notion",
+      trashed: "page is in Notion's trash",
       orphaned: "no source file",
       unpublished: "never published"
     }.freeze
 
     # States that mean something needs doing to a document the map tracks.
-    ACTIONABLE = %i[modified drifted diverged missing orphaned].freeze
+    ACTIONABLE = %i[modified drifted diverged missing trashed orphaned].freeze
 
     SKIP_DIRS = %w[.git node_modules vendor tmp .bundle].freeze
 
@@ -31,6 +32,10 @@ module NotionPublish
       def actionable? = ACTIONABLE.include?(state)
       def label = STATES[state]
     end
+
+    # Whether a page object is in Notion's trash. Older API versions called
+    # this "archived".
+    def self.trashed?(page) = page["in_trash"] == true || page["archived"] == true
 
     def initialize(map, client: nil)
       @map = map
@@ -49,10 +54,10 @@ module NotionPublish
       return Row.new(source: key, state: :orphaned, url: entry.url) unless File.file?(path)
 
       local = entry.source_sha256 && entry.source_sha256 != Digest::SHA256.hexdigest(File.binread(path))
-      remote = check_notion ? drifted?(entry) : false
-      return Row.new(source: key, state: :missing, url: entry.url) if remote == :missing
+      remote = check_notion ? remote_state(entry) : nil
+      return Row.new(source: key, state: remote, url: entry.url) if %i[missing trashed].include?(remote)
 
-      Row.new(source: key, state: state_for(local, remote), url: entry.url)
+      Row.new(source: key, state: state_for(local, remote == :drifted), url: entry.url)
     end
 
     def state_for(local, remote)
@@ -63,17 +68,31 @@ module NotionPublish
       :unchanged
     end
 
-    # Notion's own output on both sides: a round trip is not byte-stable, so the
-    # sent form would never match a later read.
-    def drifted?(entry)
-      return false unless entry.notion_sha256 && @client
+    # :missing, :trashed, :drifted, or nil when the page is as published.
+    #
+    # Deleting a page in Notion moves it to the trash, and the API still
+    # returns a trashed page, Markdown and all. Only the page object says so,
+    # which is why it is read for every page, not only for those whose
+    # content changed: a page trashed without being edited still matches.
+    def remote_state(entry)
+      return nil unless @client
+      return :trashed if Status.trashed?(@client.get("/v1/pages/#{entry.id}"))
+      return :drifted if drifted?(entry)
 
-      markdown = @client.get("/v1/pages/#{entry.id}/markdown")["markdown"].to_s
-      Digest::SHA256.hexdigest(markdown) != entry.notion_sha256
+      nil
     rescue ApiError => e
       raise unless e.not_found?
 
       :missing
+    end
+
+    # Notion's own output on both sides: a round trip is not byte-stable, so the
+    # sent form would never match a later read.
+    def drifted?(entry)
+      return false unless entry.notion_sha256
+
+      markdown = @client.get("/v1/pages/#{entry.id}/markdown")["markdown"].to_s
+      Digest::SHA256.hexdigest(markdown) != entry.notion_sha256
     end
 
     # Markdown files under the map that have never been published. Reported for

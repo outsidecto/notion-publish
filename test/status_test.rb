@@ -52,6 +52,26 @@ class StatusTest < Minitest::Test
     end
   end
 
+  # Deleting a page in Notion moves it to the trash, and the API still returns
+  # it with its Markdown. A trashed page that was never edited still matches.
+  def test_a_trashed_page_is_reported_even_when_its_content_matches
+    with_tree("a.md" => :trashed) do |dir|
+      code, out, = run_cli(["status", dir])
+
+      assert_equal NotionPublish::CLI::BLOCKED, code
+      assert_includes out, "Page is in Notion's trash (1)"
+    end
+  end
+
+  def test_a_trashed_page_is_not_reported_as_changed
+    with_tree("a.md" => :trashed_and_edited) do |dir|
+      _, out, = run_cli(["status", dir])
+
+      assert_includes out, "Page is in Notion's trash (1)"
+      refute_includes out, "changed in Notion"
+    end
+  end
+
   def test_an_entry_without_a_source_file_is_orphaned
     with_tree("a.md" => :orphaned) do |dir|
       code, out, = run_cli(["status", dir])
@@ -154,16 +174,17 @@ class StatusTest < Minitest::Test
   end
 
   def stub_page_markdown(id, kind)
-    url = "#{StubbingHelpers::API}/v1/pages/#{id}/markdown"
-    case kind
-    when :missing
-      stub_request(:get, url).to_return(status: 404, body: JSON.generate(
-        "object" => "error", "status" => 404, "code" => "object_not_found", "message" => "gone"
-      ))
-    when :drifted, :diverged
-      stub_request(:get, url).to_return(status: 200, body: JSON.generate("markdown" => "somebody edited this"))
-    else
-      stub_request(:get, url).to_return(status: 200, body: JSON.generate("markdown" => "published"))
+    page = "#{StubbingHelpers::API}/v1/pages/#{id}"
+    if kind == :missing
+      gone = JSON.generate("object" => "error", "status" => 404, "code" => "object_not_found", "message" => "gone")
+      stub_request(:get, page).to_return(status: 404, body: gone)
+      stub_request(:get, "#{page}/markdown").to_return(status: 404, body: gone)
+      return
     end
+
+    trashed = %i[trashed trashed_and_edited].include?(kind)
+    stub_request(:get, page).to_return(status: 200, body: JSON.generate("id" => id, "in_trash" => trashed))
+    markdown = %i[drifted diverged trashed_and_edited].include?(kind) ? "somebody edited this" : "published"
+    stub_request(:get, "#{page}/markdown").to_return(status: 200, body: JSON.generate("markdown" => markdown))
   end
 end

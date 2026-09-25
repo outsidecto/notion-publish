@@ -218,6 +218,23 @@ class PublishStateTest < Minitest::Test
     end
   end
 
+  def test_a_trashed_page_is_forgotten_and_published_afresh
+    with_doc do |path, map|
+      publish(path, map)
+      stub_request(:get, "#{StubbingHelpers::API}/v1/pages/#{PAGE}")
+        .to_return(status: 200, body: JSON.generate("object" => "page", "id" => PAGE, "in_trash" => true))
+      WebMock.reset_executed_requests!
+      warnings = []
+
+      outcome = publish(path, map, warnings: warnings)
+
+      assert_equal :created, outcome.action
+      assert_includes warnings.join, "is in Notion's trash"
+      assert_requested @created
+      assert_not_requested @replaced
+    end
+  end
+
   def test_flag_set_properties_and_overrides_are_recorded
     with_doc do |path, map|
       NotionPublish::Publisher.new(client).publish(

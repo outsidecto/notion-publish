@@ -310,8 +310,12 @@ them. `--force` is safe in that case.
 
 ### Pages removed from Notion
 
-If an entry points at a page that no longer exists, the tool warns, forgets the entry, and creates a
-new page.
+Deleting a page in Notion moves it to the trash. The API still returns a trashed page, content and
+all, and marks it `in_trash`. If an entry points at a page that is in the trash, or that no longer
+exists at all, the tool warns, forgets the entry, and creates a new page. `--force` is not needed.
+
+If you trashed the page by mistake and want to keep its URL, restore it from Notion's trash before
+publishing again.
 
 ### Child pages
 
@@ -482,23 +486,25 @@ anything:
 
     10 in sync, 1 changed locally, 1 changed in Notion, 1 never published
 
-| State                    | Meaning                                 | Needs action |
-|--------------------------|-----------------------------------------|--------------|
-| in sync                  | Nothing to do                           | no           |
-| changed locally          | The file changed since it was published | yes          |
-| changed in Notion        | The page was edited in Notion           | yes          |
-| changed in both          | Both                                    | yes          |
-| page is gone from Notion | The page no longer exists in Notion     | yes          |
-| no source file           | The file was deleted or moved           | yes          |
-| never published          | A Markdown file with no entry           | no           |
+| State                     | Meaning                                 | Needs action |
+|---------------------------|-----------------------------------------|--------------|
+| in sync                   | Nothing to do                           | no           |
+| changed locally           | The file changed since it was published | yes          |
+| changed in Notion         | The page was edited in Notion           | yes          |
+| changed in both           | Both                                    | yes          |
+| page is gone from Notion  | The page no longer exists in Notion     | yes          |
+| page is in Notion's trash | The page was deleted in Notion          | yes          |
+| no source file            | The file was deleted or moved           | yes          |
+| never published           | A Markdown file with no entry           | no           |
 
 Documents are grouped by state, with anything that needs action first. Files that were never
 published are counted but not listed, since a repository often has many files that are not meant for
 Notion. `--untracked` lists them.
 
-It exits 3 if anything needs action, which makes it usable as a CI check. `--local` skips the calls
-to Notion and compares file hashes only. `--json` prints one object per file, including files that
-were never published.
+It exits 3 if anything needs action, which makes it usable as a CI check. Checking against Notion
+takes two requests per tracked page: one for the page, which says whether it is in the trash, and
+one for its content. `--local` skips both and compares file hashes only. `--json` prints one object
+per file, including files that were never published.
 
 ## Local images
 
