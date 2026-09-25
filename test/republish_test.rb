@@ -161,6 +161,7 @@ class RepublishTest < Minitest::Test
       code, _, err = run_cli(["republish", dir])
 
       assert_equal NotionPublish::CLI::BLOCKED, code
+      assert_includes err, "Blocked doc.md\n"
       assert_includes err, "has changed in Notion"
       assert_not_requested @replaced
     end

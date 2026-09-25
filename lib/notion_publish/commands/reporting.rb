@@ -20,6 +20,7 @@ module NotionPublish
 
         case outcome.action
         when :blocked
+          stderr.puts "Blocked #{path}"
           stderr.puts outcome.detail
           CLI::BLOCKED
         when :skipped
