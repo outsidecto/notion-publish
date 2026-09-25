@@ -63,15 +63,35 @@ class StatusTest < Minitest::Test
 
   # Plenty of Markdown is deliberately not mirrored, so an unpublished file is
   # information rather than a problem.
-  def test_unpublished_files_are_listed_but_do_not_fail_the_check
+  def test_unpublished_files_are_counted_but_do_not_fail_the_check
     with_tree("a.md" => :synced) do |dir|
       File.write(File.join(dir, "notes.md"), "not for Notion\n")
 
       code, out, = run_cli(["status", dir])
 
       assert_equal NotionPublish::CLI::OK, code
-      assert_includes out, "never published"
-      assert_includes out, "notes.md"
+      assert_includes out, "Never published (1): pass --untracked to list them"
+      refute_includes out, "notes.md"
+    end
+  end
+
+  def test_untracked_lists_unpublished_files
+    with_tree("a.md" => :synced) do |dir|
+      File.write(File.join(dir, "notes.md"), "not for Notion\n")
+
+      _, out, = run_cli(["status", dir, "--untracked"])
+
+      assert_includes out, "Never published (1)\n  notes.md"
+    end
+  end
+
+  # What is published matters as much as what is not.
+  def test_documents_in_sync_are_listed
+    with_tree("a.md" => :synced, "b.md" => :modified) do |dir|
+      _, out, = run_cli(["status", dir])
+
+      assert_includes out, "In sync (1)\n  a.md"
+      assert_operator out.index("Changed locally (1)"), :<, out.index("In sync (1)"), "problems come first"
     end
   end
 

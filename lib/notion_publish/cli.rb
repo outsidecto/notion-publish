@@ -165,6 +165,7 @@ module NotionPublish
           @options[:pages_file] = v
         end
         o.on("--local", "status: do not check Notion, use the recorded hashes only") { @options[:local] = true }
+        o.on("--untracked", "status: list files that were never published") { @options[:untracked] = true }
         o.on("--page URL_OR_ID", "adopt: the page this file already corresponds to") { |v| @options[:page] = v }
         o.on("-y", "--yes", "adopt: accept a title match without confirming") { @options[:yes] = true }
         o.on("--force-properties", "Reapply properties even if nothing else changed") do

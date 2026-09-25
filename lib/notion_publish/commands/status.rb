@@ -12,6 +12,11 @@ module NotionPublish
     # that were never published do not count: plenty are deliberately not
     # mirrored.
     class Status < Command
+      # Problems first, then what is in sync, then what was never published.
+      ORDER = (NotionPublish::Status::ACTIONABLE + %i[unchanged unpublished]).freeze
+      # States where the page itself is what needs looking at.
+      SHOW_URL = %i[drifted diverged missing orphaned].freeze
+
       def call(dir)
         map = page_map_in(dir)
         if map.created?
@@ -34,21 +39,31 @@ module NotionPublish
       end
 
       def print_text(map, rows, checked)
-        tracked = rows.reject { |r| r.state == :unpublished }
-        stdout.puts "#{map.path} -- #{tracked.length} tracked"
+        tracked = rows.count { |r| r.state != :unpublished }
+        stdout.puts "#{map.path} -- #{tracked} tracked"
         stdout.puts "(not checked against Notion; --local was given)" unless checked
+
+        groups = rows.group_by(&:state)
+        ORDER.each { |state| print_group(state, groups[state]) if groups[state] }
+
         stdout.puts
-
-        rows.reject { |r| r.state == :unchanged }.each { |row| print_row(row) }
-
-        counts = rows.group_by(&:state).transform_values(&:length)
-        stdout.puts if counts.length > 1 || !counts.key?(:unchanged)
-        stdout.puts summary(counts)
+        stdout.puts summary(groups.transform_values(&:length))
       end
 
-      def print_row(row)
-        stdout.puts format("  %-18s %s", row.label, row.source)
-        stdout.puts format("  %-18s %s", "", row.url) if row.url && row.state != :modified
+      def print_group(state, rows)
+        label = NotionPublish::Status::STATES[state]
+        heading = "#{label[0].upcase}#{label[1..]} (#{rows.length})"
+        stdout.puts
+        if state == :unpublished && !options[:untracked]
+          stdout.puts "#{heading}: pass --untracked to list them"
+          return
+        end
+
+        stdout.puts heading
+        rows.each do |row|
+          stdout.puts "  #{row.source}"
+          stdout.puts "    #{row.url}" if row.url && SHOW_URL.include?(state)
+        end
       end
 
       def summary(counts)

@@ -23,7 +23,8 @@ module NotionPublish
       IGNORED = {
         parent: "--parent", database: "--database", properties: "--property",
         properties_json: "--properties-json", title: "--title", icon: "--icon", cover: "--cover",
-        keep_h1: "--keep-h1", link: "--link/--no-link", page: "--page", yes: "--yes", local: "--local"
+        keep_h1: "--keep-h1", link: "--link/--no-link", page: "--page", yes: "--yes", local: "--local",
+        untracked: "--untracked"
       }.freeze
 
       SUMMARY = {

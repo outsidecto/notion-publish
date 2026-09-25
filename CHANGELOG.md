@@ -17,6 +17,8 @@ All notable changes to this project are recorded here. The format follows
 
 ### Changed
 
+- `status` groups documents by state, lists the ones in sync, and counts files that were never
+  published instead of listing them. `--untracked` lists them.
 - `properties_sha256` now covers only the property values that came from the document. Flag-set
   values have their own hash, `flag_properties_sha256`. Entries published without flags keep the
   same hash, so they still report `Unchanged`.

@@ -132,9 +132,16 @@ Check where things stand at any time:
 $ notion-publish status
 /repo/notion-pages.yml -- 12 tracked
 
-  changed locally    policies/access-control.md
-  changed in Notion  policies/incident-response.md
-                     https://app.notion.com/p/...
+Changed locally (1)
+  policies/access-control.md
+
+Changed in Notion (1)
+  policies/incident-response.md
+    https://app.notion.com/p/...
+
+In sync (10)
+  policies/acceptable-use.md
+  ...
 
 10 in sync, 1 changed locally, 1 changed in Notion
 ```

@@ -52,6 +52,7 @@ Options:
 | `-n`, `--dry-run`             | Resolve and validate; write nothing                             |
 | `--json`                      | One JSON object per document on stdout                          |
 | `--local`                     | `status` only: do not ask Notion, compare local hashes only     |
+| `--untracked`                 | `status` only: list files that were never published             |
 | `--page URL_OR_ID`            | `adopt` only: the page this file corresponds to                 |
 | `-y`, `--yes`                 | `adopt` only: accept a title match without asking               |
 | `--token TOKEN`               | API token, instead of the environment                           |
@@ -362,9 +363,9 @@ the schema. For each file, `republish` uses:
 
 Options that describe one document or one destination are ignored, with a warning. They are
 `--parent`, `--database`, `--property`, `--properties-json`, `--title`, `--icon`, `--cover`,
-`--keep-h1`, `--link`, `--no-link`, `--page`, `--yes`, and `--local`. Changing a destination never
-moves an existing page. `--no-upload`, `--force`, `--force-properties`, `--json`, and
-`--pages-file` apply to every file.
+`--keep-h1`, `--link`, `--no-link`, `--page`, `--yes`, `--local`, and `--untracked`. Changing a
+destination never moves an existing page. `--no-upload`, `--force`, `--force-properties`, `--json`,
+and `--pages-file` apply to every file.
 
 ### Properties set with flags
 
@@ -466,10 +467,18 @@ anything:
     $ notion-publish status
     /repo/notion-pages.yml -- 12 tracked
 
-      changed locally    policies/access-control.md
-      changed in Notion  policies/incident-response.md
-                         https://app.notion.com/p/...
-      never published    drafts/new-policy.md
+    Changed locally (1)
+      policies/access-control.md
+
+    Changed in Notion (1)
+      policies/incident-response.md
+        https://app.notion.com/p/...
+
+    In sync (10)
+      policies/acceptable-use.md
+      ...
+
+    Never published (1): pass --untracked to list them
 
     10 in sync, 1 changed locally, 1 changed in Notion, 1 never published
 
@@ -483,8 +492,13 @@ anything:
 | no source file           | The file was deleted or moved           | yes          |
 | never published          | A Markdown file with no entry           | no           |
 
+Documents are grouped by state, with anything that needs action first. Files that were never
+published are counted but not listed, since a repository often has many files that are not meant for
+Notion. `--untracked` lists them.
+
 It exits 3 if anything needs action, which makes it usable as a CI check. `--local` skips the calls
-to Notion and compares file hashes only. `--json` prints one object per file.
+to Notion and compares file hashes only. `--json` prints one object per file, including files that
+were never published.
 
 ## Local images
 
