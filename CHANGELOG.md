@@ -28,6 +28,9 @@ All notable changes to this project are recorded here. The format follows
 
 ### Changed
 
+- Publishing a tracked file now checks its page for edits made in Notion even when the Markdown
+  has not changed, and reports them with exit code 3 instead of `Unchanged`. This costs one more
+  request per unchanged file.
 - `status` groups documents by state, lists the ones in sync, and counts files that were never
   published instead of listing them. `--untracked` lists them.
 - `properties_sha256` now covers only the property values that came from the document. Flag-set

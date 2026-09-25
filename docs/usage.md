@@ -301,10 +301,14 @@ Updating keeps the page's URL, so links to it keep working.
 
 ### Edits made in Notion
 
-After each publish the tool reads the page back and records a hash of what Notion returns. Before
-the next update it reads the page again. If the hash differs, someone edited the page in Notion, and
-the tool stops with exit code 3 instead of overwriting their change. Look at the page, move the
-change into the Markdown if you want to keep it, and publish again with `--force`.
+After each publish the tool reads the page back and records a hash of what Notion returns. Every
+later publish of that file reads the page again, even when the Markdown has not changed. If the
+hash differs, someone edited the page in Notion, and the tool stops with exit code 3 instead of
+reporting `Unchanged` or overwriting their change. Look at the page and decide which version is
+right:
+
+- To keep the edit, move it into the Markdown and publish with `--force`.
+- To discard it, publish with `--force`. That puts the Markdown's version back.
 
 If every page reports this at once, Notion probably changed how it renders Markdown. Nobody edited
 them. `--force` is safe in that case.
@@ -333,8 +337,8 @@ Each run publishes one file, so a set of files is a shell loop:
     notion-publish relink policies
 
 Put the destination and shared properties in `.notion-publish.yml`, or pass them in the loop. The
-loop is safe to re-run. An unchanged file costs one API call and reports `Unchanged`. A failure part
-way through leaves the earlier files published and recorded, so running the loop again picks up
+loop is safe to re-run. An unchanged file costs two API calls and reports `Unchanged`. A failure
+part way through leaves the earlier files published and recorded, so running the loop again picks up
 where it stopped. To stop at the first failure, add `|| break`.
 
 `--property` is the highest layer, so a `--property` in the loop overrides the same property in

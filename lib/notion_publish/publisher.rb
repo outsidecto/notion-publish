@@ -197,10 +197,12 @@ module NotionPublish
     def update_existing(job, existing, source_hash, force_properties)
       same_body = existing.source_sha256 == source_hash
       same_properties = !force_properties && properties_unchanged?(job, existing)
-      return unchanged(existing) if same_body && same_properties
 
+      # Checked even when there is nothing to send: an edit made only in
+      # Notion is exactly the divergence this tool exists to report.
       blocker = drift(existing)
       return Outcome.new(action: :blocked, page: nil, entry: existing, detail: blocker) if blocker
+      return unchanged(existing) if same_body && same_properties
       return properties_only(job, existing, source_hash) if same_body
 
       write(job, existing, source_hash)
@@ -258,8 +260,9 @@ module NotionPublish
       <<~MSG.strip
         #{entry.url} has changed in Notion since it was published.
 
-        Republishing replaces the page body and would discard that change. Use
-        --force to overwrite it anyway.
+        Publishing replaces the page body and would discard that change. Move
+        the change into the Markdown if it should stay, then publish with
+        --force, which also puts back the Markdown's version when it should not.
 
         (Every page reporting this at once usually means Notion changed how it
         renders Markdown, not that anybody edited them.)

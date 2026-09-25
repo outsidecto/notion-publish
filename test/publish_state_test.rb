@@ -218,6 +218,30 @@ class PublishStateTest < Minitest::Test
     end
   end
 
+  # Nothing to send is not the same as nothing to report.
+  def test_an_edit_in_notion_is_reported_even_when_the_source_is_unchanged
+    with_doc do |path, map|
+      publish(path, map)
+      stub_markdown("Someone added a sentence.")
+
+      outcome = publish(path, map)
+
+      assert_equal :blocked, outcome.action
+      assert_includes outcome.detail, "has changed in Notion"
+      assert_not_requested @replaced
+    end
+  end
+
+  def test_force_restores_an_unchanged_source_over_an_edit_in_notion
+    with_doc do |path, map|
+      publish(path, map)
+      stub_markdown("Someone added a sentence.")
+
+      assert_equal :updated, publish(path, map, force: true).action
+      assert_requested @replaced
+    end
+  end
+
   def test_a_trashed_page_is_forgotten_and_published_afresh
     with_doc do |path, map|
       publish(path, map)
