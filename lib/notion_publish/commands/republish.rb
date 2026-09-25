@@ -27,6 +27,9 @@ module NotionPublish
         untracked: "--untracked"
       }.freeze
 
+      PARENT_TYPES = %w[page_id database_id data_source_id].freeze
+      MAX_DEPTH = 10
+
       SUMMARY = {
         unchanged: "unchanged", updated: "updated", properties: "properties updated", created: "recreated",
         blocked: "changed in Notion", skipped: "skipped", failed: "failed", orphaned: "no source file"
@@ -116,9 +119,19 @@ module NotionPublish
                    title: parent["name"], database_id: nil, inline: nil)
       end
 
+      # A page's parent can be a block inside another page, such as a toggle
+      # heading the page was moved under. Walk up until a page, database, or
+      # data source appears; that is what supplies the schema.
       def resolve_parent_of(entry)
         parent = client.get("/v1/pages/#{entry.id}")["parent"] || {}
-        Resolver.new(client).resolve_reference(parent[parent["type"]].to_s)
+        MAX_DEPTH.times do
+          type = parent["type"]
+          return Resolver.new(client).resolve_reference(parent[type]) if PARENT_TYPES.include?(type)
+          break unless type == "block_id"
+
+          parent = client.get("/v1/blocks/#{parent['block_id']}")["parent"] || {}
+        end
+        raise Error, "Cannot tell which page or database #{entry.url} sits under."
       end
 
       def summary(results)

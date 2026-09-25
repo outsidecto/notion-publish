@@ -141,6 +141,33 @@ class RepublishTest < Minitest::Test
     end
   end
 
+  # An adopted entry records no parent, so republish asks Notion. A page moved
+  # under a heading has that heading block as its parent, not a page.
+  def test_an_adopted_page_under_a_heading_finds_the_page_above_it
+    with_published do |dir, path, map|
+      raw = map.entry(path).to_h.except("parent", "source_sha256")
+      map.pages[map.key_for(path)] = raw
+      map.save
+      stub_request(:get, "#{API}/v1/pages/#{PAGE}").to_return(status: 200, body: JSON.generate(
+        "object" => "page", "id" => PAGE, "url" => "https://n/p/x",
+        "parent" => { "type" => "block_id", "block_id" => "aaaaaaaa-0000-0000-0000-000000000001" }
+      ))
+      stub_notion(:get, "/v1/blocks/aaaaaaaa-0000-0000-0000-000000000001", status: 200, body: {
+                    "object" => "block", "id" => "aaaaaaaa-0000-0000-0000-000000000001", "type" => "heading_2",
+                    "parent" => { "type" => "page_id", "page_id" => "bbbbbbbb-0000-0000-0000-000000000002" }
+                  })
+      stub_notion(:get, "/v1/blocks/bbbbbbbb-0000-0000-0000-000000000002", status: 200, body: {
+                    "object" => "block", "id" => "bbbbbbbb-0000-0000-0000-000000000002", "type" => "child_page",
+                    "child_page" => { "title" => "Policies" }
+                  })
+
+      code, out, err = run_cli(["republish", dir])
+
+      assert_equal NotionPublish::CLI::OK, code, err
+      assert_includes out, "Updated doc.md to page \"Policies\""
+    end
+  end
+
   def test_a_destination_is_ignored_with_a_warning
     with_published do |dir|
       code, _, err = run_cli(["republish", dir, "--parent", "Elsewhere", "--title", "X"])
