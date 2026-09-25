@@ -10,11 +10,11 @@ require_relative "../target"
 
 module NotionPublish
   module Commands
-    # Publishes every document the identity map tracks, from what each entry
+    # Publishes every document the manifest tracks, from what each entry
     # recorded, without naming files one by one.
     #
     # Each page is updated where it already is, so no destination is needed
-    # and none is accepted. Files the map does not track are left alone:
+    # and none is accepted. Files the manifest does not track are left alone:
     # publishing a new document stays something you do on purpose.
     class Republish < Command
       include Reporting
@@ -37,9 +37,9 @@ module NotionPublish
         return dry_run_refused if options[:dry_run]
 
         warn_ignored
-        map = page_map_in(dir)
+        map = manifest_in(dir)
         if map.created? || map.pages.empty?
-          stderr.puts "Nothing published yet: no #{PageMap::FILENAME} with pages in #{dir}."
+          stderr.puts "Nothing published yet: no #{Manifest::FILENAME} with pages in #{dir}."
           return CLI::FAILURE
         end
 
@@ -78,7 +78,7 @@ module NotionPublish
       # printed on the calling one, in file order.
       Result = Data.define(:key, :action, :outcome, :target, :warnings, :message)
 
-      # Several files at a time. The client, the publisher, and the map are
+      # Several files at a time. The client, the publisher, and the manifest are
       # set up here first, so no worker races to create them.
       def run_all(map, entries)
         client
@@ -96,7 +96,7 @@ module NotionPublish
       # One document failing does not stop the rest, the same as a shell loop
       # without `|| break`.
       def republish(map, key, raw)
-        entry = PageMap::Entry.from(raw)
+        entry = Manifest::Entry.from(raw)
         path = File.expand_path(key, map.dir)
         return Result.new(key, :orphaned, nil, nil, [], nil) unless File.file?(path)
 
@@ -124,7 +124,7 @@ module NotionPublish
         Decoration.check!(icon, :icon) if icon
         Decoration.check!(cover, :cover) if cover
 
-        publisher.republish(document, entry: entry, target: target, map: map, warnings: warnings,
+        publisher.republish(document, entry: entry, target: target, manifest: map, warnings: warnings,
                                       upload: options[:upload] != false, icon: icon, cover: cover,
                                       force: options[:force] == true,
                                       force_properties: options[:force_properties] == true)

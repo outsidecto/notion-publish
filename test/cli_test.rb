@@ -256,16 +256,16 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = File.join(dir, "doc.md")
       File.write(path, "# T\n\nOne.\n")
-      pages = File.join(dir, "notion-pages.yml")
+      pages = File.join(dir, "notion-publish-manifest.yml")
 
       assert_equal NotionPublish::CLI::OK,
-                   run_cli([path, "--parent", UUID, "--link", "--pages-file", pages]).first
+                   run_cli([path, "--parent", UUID, "--link", "--manifest", pages]).first
 
       File.write(path, "# T\n\nTwo.\n")
       stub_request(:get, "#{StubbingHelpers::API}/v1/pages/pg/markdown")
         .to_return(status: 200, body: JSON.generate("markdown" => "somebody edited this"))
 
-      code, out, err = run_cli([path, "--parent", UUID, "--link", "--pages-file", pages, "--json"])
+      code, out, err = run_cli([path, "--parent", UUID, "--link", "--manifest", pages, "--json"])
 
       assert_equal NotionPublish::CLI::BLOCKED, code
       assert_includes err, "changed in Notion"

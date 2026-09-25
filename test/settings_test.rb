@@ -48,13 +48,12 @@ class SettingsTest < Minitest::Test
     end
   end
 
-  # Legacy combined files carried these; they belong in the identity map now.
-  def test_legacy_state_keys_are_tolerated_and_ignored
+  # Records of published pages belong in the manifest, never in settings.
+  def test_state_keys_in_settings_are_refused
     with_tree("" => "database: References\npages:\n  a.md:\n    id: x\n") do |root|
-      settings = NotionPublish::Settings.for(root)
+      error = assert_raises(NotionPublish::ConfigError) { NotionPublish::Settings.for(root) }
 
-      assert_equal "References", settings.database
-      assert_equal %w[database], settings.data.keys
+      assert_includes error.message, "unknown setting \"pages\""
     end
   end
 

@@ -24,7 +24,7 @@ class NotionDigestTest < Minitest::Test
     refute_equal NotionPublish::NotionDigest.of(first), NotionPublish::NotionDigest.of(second)
   end
 
-  # Existing hashes in notion-pages.yml were taken over the raw Markdown.
+  # Existing hashes in notion-publish-manifest.yml were taken over the raw Markdown.
   def test_a_page_without_signed_urls_hashes_as_before
     markdown = "Plain [link](https://example.com/page?a=1) and text.\n"
 

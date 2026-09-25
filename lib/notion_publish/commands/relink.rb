@@ -14,9 +14,9 @@ module NotionPublish
     # https://<filename>.md. Now that every page has a URL, fix those.
     class Relink < Command
       def call(dir)
-        map = page_map_in(dir)
+        map = manifest_in(dir)
         if map.created? || map.pages.empty?
-          stderr.puts "Nothing published yet: no #{PageMap::FILENAME} with pages in #{dir}."
+          stderr.puts "Nothing published yet: no #{Manifest::FILENAME} with pages in #{dir}."
           return CLI::FAILURE
         end
 
@@ -29,13 +29,13 @@ module NotionPublish
       private
 
       # Several pages at a time. Workers read the published URLs from a copy
-      # taken first, since the map itself changes as pages are rehashed.
+      # taken first, since the manifest itself changes as pages are rehashed.
       def relink_all(map)
         urls = map.pages.transform_values { |raw| raw["url"] }
         client
         progress.start("Checking", map.pages.length)
         Pool.run(map.pages.to_a, size: jobs, work: lambda { |(key, raw)|
-          relink_page(map, urls, key, PageMap::Entry.from(raw))
+          relink_page(map, urls, key, Manifest::Entry.from(raw))
         },
                                  started: ->((key, _)) { progress.started(key) },
                                  finished: ->(done) { progress.finished(done) }) do |(key, _), count|

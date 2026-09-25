@@ -83,7 +83,7 @@ class LogTest < Minitest::Test
   def test_verbose_names_the_workspace_even_when_the_command_would_not_ask
     stub_notion(:get, "/v1/users/me", status: 200, body: { "name" => "Bot", "bot" => { "workspace_name" => "Acme" } })
     Dir.mktmpdir do |dir|
-      File.write(File.join(dir, "notion-pages.yml"), "pages: {}\n")
+      File.write(File.join(dir, "notion-publish-manifest.yml"), "pages: {}\n")
       err = StringIO.new
       cli = NotionPublish::CLI.new(stdout: StringIO.new, stderr: err)
 

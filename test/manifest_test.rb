@@ -2,21 +2,21 @@
 
 require "test_helper"
 
-class PageMapTest < Minitest::Test
+class ManifestTest < Minitest::Test
   def entry(url: "https://notion.so/A", **overrides)
     defaults = {
       id: "p1", url: url, parent: { "type" => "data_source_id", "id" => "ds1", "name" => "Docs" },
       properties: %w[Function], source_sha256: "aaa", notion_sha256: "bbb",
       published_at: "2026-09-02T03:11:00Z"
     }
-    NotionPublish::PageMap::Entry.new(**defaults, **overrides)
+    NotionPublish::Manifest::Entry.new(**defaults, **overrides)
   end
 
   def test_an_entry_round_trips_through_the_file
     with_map do |map, dir|
       map.record(File.join(dir, "a.md"), entry)
 
-      reloaded = NotionPublish::PageMap.new(map.path).entry(File.join(dir, "a.md"))
+      reloaded = NotionPublish::Manifest.new(map.path).entry(File.join(dir, "a.md"))
 
       assert_equal "p1", reloaded.id
       assert_equal %w[Function], reloaded.properties
@@ -57,7 +57,7 @@ class PageMapTest < Minitest::Test
   # other's entries.
   def test_a_concurrent_write_is_not_lost
     with_map do |map, dir|
-      other = NotionPublish::PageMap.new(map.path)
+      other = NotionPublish::Manifest.new(map.path)
       map.record(File.join(dir, "a.md"), entry)
       other.record(File.join(dir, "b.md"), entry)
 
@@ -65,13 +65,13 @@ class PageMapTest < Minitest::Test
     end
   end
 
-  # Locking the map itself, not a sidecar: a stray .lock beside committed state
+  # Locking the manifest itself, not a sidecar: a stray .lock beside committed state
   # is litter and one more thing to gitignore.
   def test_writing_leaves_no_other_files_behind
     with_map do |map, dir|
       map.record(File.join(dir, "a.md"), entry)
 
-      assert_equal [NotionPublish::PageMap::FILENAME], Dir.children(dir).sort
+      assert_equal [NotionPublish::Manifest::FILENAME], Dir.children(dir).sort
     end
   end
 
@@ -94,13 +94,13 @@ class PageMapTest < Minitest::Test
     end
   end
 
-  # Starting from an empty map would republish everything as new.
+  # starting from an empty manifest would republish everything as new.
   def test_a_malformed_map_refuses_rather_than_starting_empty
     Dir.mktmpdir do |dir|
-      path = File.join(dir, NotionPublish::PageMap::FILENAME)
+      path = File.join(dir, NotionPublish::Manifest::FILENAME)
       File.write(path, "pages: [unclosed\n")
 
-      error = assert_raises(NotionPublish::ConfigError) { NotionPublish::PageMap.new(path) }
+      error = assert_raises(NotionPublish::ConfigError) { NotionPublish::Manifest.new(path) }
 
       assert_includes error.message, "could not be read"
       assert_includes error.message, "would duplicate every published document"
@@ -112,7 +112,7 @@ class PageMapTest < Minitest::Test
       readonly = File.join(dir, "ro")
       Dir.mkdir(readonly)
       File.chmod(0o500, readonly)
-      map = NotionPublish::PageMap.new(File.join(readonly, NotionPublish::PageMap::FILENAME))
+      map = NotionPublish::Manifest.new(File.join(readonly, NotionPublish::Manifest::FILENAME))
 
       error = assert_raises(NotionPublish::Error) { map.record(File.join(dir, "a.md"), entry) }
 
@@ -123,71 +123,23 @@ class PageMapTest < Minitest::Test
     end
   end
 
-  # Earlier versions kept settings and state in one file. The state moves across
-  # in place, so its keys keep pointing at the same documents.
-  def test_a_legacy_combined_file_is_migrated_in_place
-    Dir.mktmpdir do |dir|
-      File.write(File.join(dir, NotionPublish::PageMap::LEGACY_FILENAME), <<~YAML)
-        database: References
-        pages:
-          a.md:
-            id: p1
-            url: https://notion.so/A
-        databases:
-          References: ds1
-      YAML
-
-      said = []
-      map = NotionPublish::PageMap.locate(File.join(dir, "a.md"), reporter: ->(m) { said << m })
-
-      assert_equal File.join(dir, NotionPublish::PageMap::FILENAME), map.path
-      assert_equal "p1", map.entry(File.join(dir, "a.md")).id
-      assert_equal "ds1", map.databases["References"]
-      assert_includes said.join, "Remove the pages/databases keys"
-      assert_includes said.join, "database"
-    end
-  end
-
-  def test_a_legacy_file_holding_only_state_is_reported_as_deletable
-    Dir.mktmpdir do |dir|
-      File.write(File.join(dir, NotionPublish::PageMap::LEGACY_FILENAME),
-                 "pages:\n  a.md:\n    id: p1\n    url: https://notion.so/A\n")
-
-      said = []
-      NotionPublish::PageMap.locate(File.join(dir, "a.md"), reporter: ->(m) { said << m })
-
-      assert_includes said.join, "you can delete it"
-    end
-  end
-
-  def test_a_settings_only_file_is_not_mistaken_for_state
-    Dir.mktmpdir do |dir|
-      File.write(File.join(dir, NotionPublish::PageMap::LEGACY_FILENAME), "database: References\n")
-
-      map = NotionPublish::PageMap.locate(File.join(dir, "a.md"))
-
-      assert_predicate map, :created?, "nothing to migrate, so no map is written"
-      refute_path_exists map.path
-    end
-  end
-
-  # --pages-file wins; then an existing file; then the repo root; then here.
+  # --manifest wins; then an existing file; then the repo root; then here.
   def test_locate_prefers_an_explicit_path
     Dir.mktmpdir do |dir|
       chosen = File.join(dir, "elsewhere.yml")
 
-      assert_equal chosen, NotionPublish::PageMap.locate(File.join(dir, "a.md"), override: chosen).path
+      assert_equal chosen, NotionPublish::Manifest.locate(File.join(dir, "a.md"), override: chosen).path
     end
   end
 
   def test_locate_finds_an_existing_map_above_the_document
     Dir.mktmpdir do |dir|
       FileUtils.mkdir_p(File.join(dir, "deep", "deeper"))
-      File.write(File.join(dir, NotionPublish::PageMap::FILENAME), "pages: {}\n")
+      File.write(File.join(dir, NotionPublish::Manifest::FILENAME), "pages: {}\n")
 
-      found = NotionPublish::PageMap.locate(File.join(dir, "deep", "deeper", "a.md"))
+      found = NotionPublish::Manifest.locate(File.join(dir, "deep", "deeper", "a.md"))
 
-      assert_equal File.join(dir, NotionPublish::PageMap::FILENAME), found.path
+      assert_equal File.join(dir, NotionPublish::Manifest::FILENAME), found.path
     end
   end
 
@@ -196,18 +148,18 @@ class PageMapTest < Minitest::Test
       FileUtils.mkdir_p(File.join(dir, ".git"))
       FileUtils.mkdir_p(File.join(dir, "docs", "policies"))
 
-      found = NotionPublish::PageMap.locate(File.join(dir, "docs", "policies", "a.md"))
+      found = NotionPublish::Manifest.locate(File.join(dir, "docs", "policies", "a.md"))
 
-      assert_equal File.join(dir, NotionPublish::PageMap::FILENAME), found.path
+      assert_equal File.join(dir, NotionPublish::Manifest::FILENAME), found.path
       assert_predicate found, :created?
     end
   end
 
   def test_locate_falls_back_to_the_documents_own_directory
     Dir.mktmpdir do |dir|
-      found = NotionPublish::PageMap.locate(File.join(dir, "a.md"))
+      found = NotionPublish::Manifest.locate(File.join(dir, "a.md"))
 
-      assert_equal File.join(dir, NotionPublish::PageMap::FILENAME), found.path
+      assert_equal File.join(dir, NotionPublish::Manifest::FILENAME), found.path
     end
   end
 
@@ -216,12 +168,12 @@ class PageMapTest < Minitest::Test
   def test_recording_a_forgotten_key_keeps_the_new_entry
     Dir.mktmpdir do |dir|
       path = File.join(dir, "a.md")
-      map = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
-      map.record(path, NotionPublish::PageMap::Entry.new(id: "old", url: "u-old"))
+      map = NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME))
+      map.record(path, NotionPublish::Manifest::Entry.new(id: "old", url: "u-old"))
       map.forget(path)
-      map.record(path, NotionPublish::PageMap::Entry.new(id: "new", url: "u-new"))
+      map.record(path, NotionPublish::Manifest::Entry.new(id: "new", url: "u-new"))
 
-      assert_equal "new", NotionPublish::PageMap.new(map.path).entry(path)&.id
+      assert_equal "new", NotionPublish::Manifest.new(map.path).entry(path)&.id
     end
   end
 
@@ -229,7 +181,7 @@ class PageMapTest < Minitest::Test
 
   def with_map
     Dir.mktmpdir do |dir|
-      yield NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME)), dir
+      yield NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME)), dir
     end
   end
 end

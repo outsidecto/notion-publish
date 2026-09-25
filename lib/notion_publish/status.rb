@@ -4,13 +4,13 @@ require "digest"
 
 require_relative "notion_digest"
 require_relative "errors"
-require_relative "page_map"
+require_relative "manifest"
 require_relative "pool"
 
 module NotionPublish
   # What would happen if you published everything.
   #
-  # Answers the question the identity map exists to make answerable: which
+  # Answers the question the manifest exists to make answerable: which
   # documents are in sync, which have changed locally, which changed in Notion,
   # and which entries no longer have a source file.
   class Status
@@ -25,7 +25,7 @@ module NotionPublish
       unpublished: "never published"
     }.freeze
 
-    # States that mean something needs doing to a document the map tracks.
+    # States that mean something needs doing to a document the manifest tracks.
     ACTIONABLE = %i[modified drifted diverged missing trashed orphaned].freeze
 
     SKIP_DIRS = %w[.git node_modules vendor tmp .bundle].freeze
@@ -51,7 +51,7 @@ module NotionPublish
       @client&.me if check_notion
       tracked = Pool.run(@map.pages.to_a, size: jobs,
                                           work: lambda { |(key, raw)|
-                                            tracked_row(key, PageMap::Entry.from(raw), check_notion)
+                                            tracked_row(key, Manifest::Entry.from(raw), check_notion)
                                           },
                                           started: started && ->((key, _)) { started.call(key) }, finished: finished)
       tracked.sort_by { |r| [ACTIONABLE.index(r.state) || 99, r.source] } + untracked(dir)
@@ -105,7 +105,7 @@ module NotionPublish
       NotionDigest.of(markdown) != entry.notion_sha256
     end
 
-    # Markdown files under the map that have never been published. Reported for
+    # Markdown files under the manifest that have never been published. Reported for
     # information; they are not counted as needing action, because plenty of
     # files are deliberately not mirrored.
     def untracked(dir)

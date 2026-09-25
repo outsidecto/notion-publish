@@ -5,13 +5,13 @@ require "test_helper"
 class LinksTest < Minitest::Test
   def with_registry
     Dir.mktmpdir do |dir|
-      map = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+      map = NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME))
       yield map, dir
     end
   end
 
   def record(map, path, url)
-    map.record(path, NotionPublish::PageMap::Entry.new(
+    map.record(path, NotionPublish::Manifest::Entry.new(
                        id: "p1", url: url, parent: nil, properties: [],
                        source_sha256: nil, notion_sha256: nil, published_at: nil
                      ))
@@ -110,7 +110,7 @@ class LinksTest < Minitest::Test
 
       assert_equal("p1", registry.pages["a.md"]["id"])
       assert_equal(["a.md"], registry.pages.keys)
-      assert_equal "https://notion.so/A", NotionPublish::PageMap.new(registry.path).url_for(File.join(dir, "a.md"))
+      assert_equal "https://notion.so/A", NotionPublish::Manifest.new(registry.path).url_for(File.join(dir, "a.md"))
     end
   end
 end

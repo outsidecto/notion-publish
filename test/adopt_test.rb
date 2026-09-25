@@ -21,13 +21,13 @@ class AdoptTest < Minitest::Test
   # Naming the page is exact: nothing is searched and nothing is confirmed.
   def test_adopting_by_page_url_records_the_entry
     with_doc do |path, pages|
-      code, out, = run_cli(["adopt", path, "--page", URL, "--pages-file", pages])
+      code, out, = run_cli(["adopt", path, "--page", URL, "--manifest", pages])
 
       assert_equal NotionPublish::CLI::OK, code
       assert_includes out, "Adopted"
       assert_includes out, "Run notion-publish to update it."
 
-      entry = NotionPublish::PageMap.new(pages).entry(path)
+      entry = NotionPublish::Manifest.new(pages).entry(path)
 
       assert_equal PAGE, entry.id
       assert_equal URL, entry.url
@@ -38,8 +38,8 @@ class AdoptTest < Minitest::Test
   # the next publish must run rather than reporting the document unchanged.
   def test_adopting_does_not_record_the_source_hash
     with_doc do |path, pages|
-      run_cli(["adopt", path, "--page", URL, "--pages-file", pages])
-      entry = NotionPublish::PageMap.new(pages).entry(path)
+      run_cli(["adopt", path, "--page", URL, "--manifest", pages])
+      entry = NotionPublish::Manifest.new(pages).entry(path)
 
       assert_nil entry.source_sha256
       assert_equal Digest::SHA256.hexdigest("existing content"), entry.notion_sha256,
@@ -51,7 +51,7 @@ class AdoptTest < Minitest::Test
     stub_missing(:get, "/v1/pages/#{PAGE}", PAGE)
 
     with_doc do |path, pages|
-      code, _, err = run_cli(["adopt", path, "--page", URL, "--pages-file", pages])
+      code, _, err = run_cli(["adopt", path, "--page", URL, "--manifest", pages])
 
       assert_equal NotionPublish::CLI::FAILURE, code
       assert_includes err, "Cannot reach"
@@ -60,9 +60,9 @@ class AdoptTest < Minitest::Test
 
   def test_an_already_adopted_file_is_refused
     with_doc do |path, pages|
-      run_cli(["adopt", path, "--page", URL, "--pages-file", pages])
+      run_cli(["adopt", path, "--page", URL, "--manifest", pages])
 
-      code, _, err = run_cli(["adopt", path, "--page", URL, "--pages-file", pages])
+      code, _, err = run_cli(["adopt", path, "--page", URL, "--manifest", pages])
 
       assert_equal NotionPublish::CLI::FAILURE, code
       assert_includes err, "already points at a page"
@@ -76,7 +76,7 @@ class AdoptTest < Minitest::Test
     stub_query([page_body])
 
     with_doc do |path, pages|
-      code, _, err = run_cli(["adopt", path, "--parent", UUID, "--pages-file", pages])
+      code, _, err = run_cli(["adopt", path, "--parent", UUID, "--manifest", pages])
 
       assert_equal NotionPublish::CLI::FAILURE, code
       assert_includes err, "no terminal here to confirm"
@@ -90,11 +90,11 @@ class AdoptTest < Minitest::Test
     stub_query([page_body])
 
     with_doc do |path, pages|
-      code, out, = run_cli(["adopt", path, "--parent", UUID, "--pages-file", pages, "--yes"])
+      code, out, = run_cli(["adopt", path, "--parent", UUID, "--manifest", pages, "--yes"])
 
       assert_equal NotionPublish::CLI::OK, code
       assert_includes out, "Adopted"
-      assert_equal PAGE, NotionPublish::PageMap.new(pages).entry(path).id
+      assert_equal PAGE, NotionPublish::Manifest.new(pages).entry(path).id
     end
   end
 
@@ -103,12 +103,12 @@ class AdoptTest < Minitest::Test
     stub_query([page_body])
 
     with_doc do |path, pages|
-      code, out, = run_cli(["adopt", path, "--parent", UUID, "--pages-file", pages], stdin: terminal("y\n"))
+      code, out, = run_cli(["adopt", path, "--parent", UUID, "--manifest", pages], stdin: terminal("y\n"))
 
       assert_equal NotionPublish::CLI::OK, code
       assert_includes out, "last edited 2026-08-14 by Jane Doe"
       assert_includes out, "Adopt it? [y/N]"
-      assert_equal PAGE, NotionPublish::PageMap.new(pages).entry(path).id
+      assert_equal PAGE, NotionPublish::Manifest.new(pages).entry(path).id
     end
   end
 
@@ -117,7 +117,7 @@ class AdoptTest < Minitest::Test
     stub_query([page_body])
 
     with_doc do |path, pages|
-      code, = run_cli(["adopt", path, "--parent", UUID, "--pages-file", pages], stdin: terminal("\n"))
+      code, = run_cli(["adopt", path, "--parent", UUID, "--manifest", pages], stdin: terminal("\n"))
 
       assert_equal NotionPublish::CLI::FAILURE, code
       refute_path_exists pages
@@ -129,7 +129,7 @@ class AdoptTest < Minitest::Test
     stub_query([page_body, page_body(id: "other", url: "https://n/p/other")])
 
     with_doc do |path, pages|
-      code, _, err = run_cli(["adopt", path, "--parent", UUID, "--pages-file", pages, "--yes"])
+      code, _, err = run_cli(["adopt", path, "--parent", UUID, "--manifest", pages, "--yes"])
 
       assert_equal NotionPublish::CLI::FAILURE, code
       assert_includes err, "More than one page"
@@ -143,7 +143,7 @@ class AdoptTest < Minitest::Test
     stub_query([])
 
     with_doc do |path, pages|
-      code, _, err = run_cli(["adopt", path, "--parent", UUID, "--pages-file", pages, "--yes"])
+      code, _, err = run_cli(["adopt", path, "--parent", UUID, "--manifest", pages, "--yes"])
 
       assert_equal NotionPublish::CLI::FAILURE, code
       assert_includes err, "Nothing to adopt"
@@ -198,7 +198,7 @@ class AdoptTest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = File.join(dir, "access-control-policy.md")
       File.write(path, "# Access Control Policy\n\nBody.\n")
-      yield path, File.join(dir, "notion-pages.yml")
+      yield path, File.join(dir, "notion-publish-manifest.yml")
     end
   end
 end

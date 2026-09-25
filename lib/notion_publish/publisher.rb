@@ -10,7 +10,7 @@ require_relative "errors"
 require_relative "fixups"
 require_relative "links"
 require_relative "media"
-require_relative "page_map"
+require_relative "manifest"
 require_relative "property_set"
 require_relative "schema"
 require_relative "status"
@@ -23,7 +23,7 @@ module NotionPublish
   # Uses POST /v1/pages with the `markdown` body parameter for a new page and
   # PATCH /v1/pages/:id/markdown with `replace_content` for an existing one, so
   # Notion does the Markdown-to-block conversion in both directions. Updating in
-  # place keeps the page's URL, which is what makes the identity map worth
+  # place keeps the page's URL, which is what makes the manifest worth
   # committing.
   class Publisher
     # What a run did, so the caller can report it and a script can branch on it.
@@ -39,7 +39,7 @@ module NotionPublish
     # +preserve+ lists properties this run must neither set nor clear: on a
     # republish, the ones an earlier run set from flags, whose values were
     # never recorded.
-    Job = Data.define(:document, :target, :map, :properties, :title, :title_given,
+    Job = Data.define(:document, :target, :manifest, :properties, :title, :title_given,
                       :warnings, :upload, :keep_h1, :icon, :cover, :preserve, :republish) do
       def source = File.expand_path(document.path)
       def base_dir = File.dirname(source)
@@ -60,10 +60,10 @@ module NotionPublish
       @lock = Mutex.new
     end
 
-    def publish(document, target:, map: nil, properties: PropertySet.new, title: nil,
+    def publish(document, target:, manifest: nil, properties: PropertySet.new, title: nil,
                 title_given: false, warnings: [], upload: true, keep_h1: false,
                 icon: nil, cover: nil, force: false, force_properties: false)
-      job = Job.new(document: document, target: target, map: map, properties: properties,
+      job = Job.new(document: document, target: target, manifest: manifest, properties: properties,
                     title: title || document.title, title_given: title_given, warnings: warnings,
                     upload: upload, keep_h1: keep_h1, icon: icon, cover: cover, preserve: [], republish: false)
       run(job, force: force, force_properties: force_properties)
@@ -72,9 +72,9 @@ module NotionPublish
     # Publishes a document again from what its entry recorded: front matter,
     # plus any --title and --keep-h1 the last single-file publish was given.
     # Properties that were set from flags are left as they are.
-    def republish(document, entry:, target:, map:, warnings: [], upload: true, icon: nil, cover: nil,
+    def republish(document, entry:, target:, manifest:, warnings: [], upload: true, icon: nil, cover: nil,
                   force: false, force_properties: false)
-      job = Job.new(document: document, target: target, map: map,
+      job = Job.new(document: document, target: target, manifest: manifest,
                     properties: PropertySet.build(front_matter: document.properties),
                     title: entry.title_override || document.title, title_given: !entry.title_override.nil?,
                     warnings: warnings, upload: upload, keep_h1: entry.keep_h1 == true, icon: icon, cover: cover,
@@ -177,7 +177,7 @@ module NotionPublish
     # pointing at a page that no longer exists, or that someone moved to the
     # trash, is stale rather than fatal: forget it and publish afresh.
     def live_entry(job)
-      entry = job.map&.entry(job.source)
+      entry = job.manifest&.entry(job.source)
       return nil unless entry
       return entry unless Status.trashed?(@client.get("/v1/pages/#{entry.id}"))
 
@@ -190,7 +190,7 @@ module NotionPublish
 
     def forget(job, entry, why)
       job.warnings << "#{entry.url} #{why}. Publishing a new page and forgetting the old entry."
-      job.map.forget(job.source)
+      job.manifest.forget(job.source)
       nil
     end
 
@@ -217,7 +217,7 @@ module NotionPublish
 
     # A hash of what this run would set, so a reworked set of properties is
     # itself a change worth publishing. Names and values, canonicalised, without
-    # storing either in the map.
+    # storing either in the manifest.
     def digest(built) = Digest::SHA256.hexdigest(JSON.generate(built.sort.to_h))
 
     # The document's properties and the flag-set ones are hashed separately,
@@ -251,7 +251,7 @@ module NotionPublish
       props = split_for(job, schema)
       page = update_properties(job, existing, props.all.merge(clearances(schema, existing, props.all, job.preserve)))
       record(job, page, source_hash, props, existing)
-      Outcome.new(action: :properties, page: page, entry: job.map&.entry(job.source), detail: nil)
+      Outcome.new(action: :properties, page: page, entry: job.manifest&.entry(job.source), detail: nil)
     end
 
     # Compare Notion's own output against Notion's own output: a round trip is
@@ -290,7 +290,8 @@ module NotionPublish
 
       place_images(page["id"], body.media, body.uploads, job.warnings) unless body.uploads.empty?
       record(job, page, source_hash, props, existing)
-      Outcome.new(action: existing ? :updated : :created, page: page, entry: job.map&.entry(job.source), detail: nil)
+      Outcome.new(action: existing ? :updated : :created, page: page, entry: job.manifest&.entry(job.source),
+                  detail: nil)
     end
 
     # Fixes, link rewriting, and image uploads. Uploads happen here, before any
@@ -363,15 +364,15 @@ module NotionPublish
     end
 
     def record(job, page, source_hash, props, existing)
-      return unless job.map
+      return unless job.manifest
 
-      job.map.workspace_id = @client.me.dig("bot", "workspace_id") || @client.me["id"]
-      job.map.record(job.source, entry_for(job, page, source_hash, props, existing))
+      job.manifest.workspace_id = @client.me.dig("bot", "workspace_id") || @client.me["id"]
+      job.manifest.record(job.source, entry_for(job, page, source_hash, props, existing))
     end
 
     def entry_for(job, page, source_hash, props, existing)
       flag_names, flag_digest = recorded_flags(job, props, existing)
-      PageMap::Entry.new(
+      Manifest::Entry.new(
         id: page["id"], url: page["url"],
         parent: { "type" => job.target.page? ? "page_id" : "data_source_id",
                   "id" => job.target.id, "name" => job.target.title },
@@ -398,12 +399,12 @@ module NotionPublish
     def prepare(job)
       body = Fixups.apply(job.document.body)
       body = Fixups.strip_leading_h1(body) unless job.keep_h1
-      body = rewrite_links(job, body) if job.map
+      body = rewrite_links(job, body) if job.manifest
       job.document.with_body(body)
     end
 
     def rewrite_links(job, body)
-      links = Links.new(registry: job.map, base_dir: job.base_dir)
+      links = Links.new(registry: job.manifest, base_dir: job.base_dir)
       rewritten = links.rewrite(body)
       links.unresolved.uniq.each do |target|
         job.warnings << "#{target} is not published yet, so that link will point at #{Links.mangled(target)}. " \

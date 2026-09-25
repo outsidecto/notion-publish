@@ -6,7 +6,7 @@ require_relative "client"
 require_relative "commands"
 require_relative "errors"
 require_relative "log"
-require_relative "page_map"
+require_relative "manifest"
 require_relative "pool"
 require_relative "version"
 
@@ -149,7 +149,7 @@ module NotionPublish
       @parser ||= OptionParser.new do |o|
         o.banner = <<~BANNER.strip
           Usage: notion-publish FILE [options]
-                 notion-publish republish [DIR]        update every page notion-pages.yml tracks
+                 notion-publish republish [DIR]        update every page notion-publish-manifest.yml tracks
                  notion-publish properties [options]   show the destination's schema
                  notion-publish relink [DIR]           fix links to documents published later
                  notion-publish adopt FILE [options]   record a page this file already corresponds to
@@ -175,8 +175,8 @@ module NotionPublish
         o.on("--keep-h1", "Keep the leading H1 in the body as well as the title") { @options[:keep_h1] = true }
         o.on("--link", "Record this page so it can be updated and linked to") { @options[:link] = true }
         o.on("--no-link", "Do not record or update; always create a new page") { @options[:link] = false }
-        o.on("--pages-file PATH", "Identity map to use (default: #{PageMap::FILENAME} at the repo root)") do |v|
-          @options[:pages_file] = v
+        o.on("--manifest PATH", "Manifest to use (default: #{Manifest::FILENAME} at the repo root)") do |v|
+          @options[:manifest] = v
         end
         o.on("--local", "status: do not check Notion, use the recorded hashes only") { @options[:local] = true }
         o.on("--untracked", "status: list files that were never published") { @options[:untracked] = true }

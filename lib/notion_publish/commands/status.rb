@@ -18,9 +18,9 @@ module NotionPublish
       SHOW_URL = %i[drifted diverged missing trashed orphaned].freeze
 
       def call(dir)
-        map = page_map_in(dir)
+        map = manifest_in(dir)
         if map.created?
-          stderr.puts "Nothing published yet: no #{PageMap::FILENAME} at or above #{dir}."
+          stderr.puts "Nothing published yet: no #{Manifest::FILENAME} at or above #{dir}."
           return CLI::FAILURE
         end
 

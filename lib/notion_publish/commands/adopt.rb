@@ -18,7 +18,7 @@ module NotionPublish
     class Adopt < Command
       def call(path)
         document = Document.load(path)
-        map = PageMap.locate(path, override: options[:pages_file], reporter: map_reporter)
+        map = Manifest.locate(path, override: options[:manifest])
         source = File.expand_path(path)
 
         if (existing = map.entry(source))
@@ -40,9 +40,9 @@ module NotionPublish
       def record(map, source, candidate)
         markdown = client.get("/v1/pages/#{candidate.id}/markdown")["markdown"].to_s
         map.workspace_id = client.me.dig("bot", "workspace_id")
-        map.record(source, PageMap::Entry.new(id: candidate.id, url: candidate.url,
-                                              notion_sha256: NotionDigest.of(markdown),
-                                              flag_properties: []))
+        map.record(source, Manifest::Entry.new(id: candidate.id, url: candidate.url,
+                                               notion_sha256: NotionDigest.of(markdown),
+                                               flag_properties: []))
       end
 
       def choose(document, path)
@@ -78,7 +78,7 @@ module NotionPublish
           #{path} already points at a page:
             #{entry.url}
 
-          Delete that entry from #{PageMap::FILENAME} first if you meant to point it
+          Delete that entry from #{Manifest::FILENAME} first if you meant to point it
           somewhere else.
         MSG
       end

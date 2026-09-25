@@ -195,7 +195,7 @@ class PublishStateTest < Minitest::Test
     with_doc do |path, map|
       publish(path, map, properties: ["Function=Legal"])
       entry = map.entry(path)
-      map.record(path, NotionPublish::PageMap::Entry.new(
+      map.record(path, NotionPublish::Manifest::Entry.new(
                          id: entry.id, url: entry.url, parent: entry.parent,
                          properties: entry.properties, source_sha256: entry.source_sha256,
                          notion_sha256: entry.notion_sha256
@@ -254,7 +254,7 @@ class PublishStateTest < Minitest::Test
 
       assert_equal :created, outcome.action
       assert_includes warnings.join, "is in Notion's trash"
-      assert_equal PAGE, NotionPublish::PageMap.new(map.path).entry(path)&.id, "the new page is recorded"
+      assert_equal PAGE, NotionPublish::Manifest.new(map.path).entry(path)&.id, "the new page is recorded"
       assert_requested @created
       assert_not_requested @replaced
     end
@@ -263,7 +263,7 @@ class PublishStateTest < Minitest::Test
   def test_flag_set_properties_and_overrides_are_recorded
     with_doc do |path, map|
       NotionPublish::Publisher.new(client).publish(
-        NotionPublish::Document.load(path), target: target, map: map,
+        NotionPublish::Document.load(path), target: target, manifest: map,
                                             properties: NotionPublish::PropertySet.build(pairs: ["Function=Legal"]),
                                             title: "Chosen", title_given: true, keep_h1: true
       )
@@ -321,7 +321,7 @@ class PublishStateTest < Minitest::Test
 
   def publish(path, map, properties: [], force: false, force_properties: false, warnings: [])
     NotionPublish::Publisher.new(client).publish(
-      NotionPublish::Document.load(path), target: target, map: map,
+      NotionPublish::Document.load(path), target: target, manifest: map,
                                           properties: NotionPublish::PropertySet.build(pairs: properties),
                                           warnings: warnings, force: force, force_properties: force_properties
     )
@@ -350,7 +350,7 @@ class PublishStateTest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = File.join(dir, "doc.md")
       File.write(path, BODY)
-      yield path, NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+      yield path, NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME))
     end
   end
 end

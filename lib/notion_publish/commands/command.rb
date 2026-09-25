@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../errors"
-require_relative "../page_map"
+require_relative "../manifest"
 require_relative "../pool"
 require_relative "../progress"
 require_relative "../property_set"
@@ -42,8 +42,6 @@ module NotionPublish
       # -v: list every file, including those where nothing happened.
       def listing_everything? = options[:verbose].to_i >= 1
       def logging_requests? = options[:verbose].to_i >= 2
-
-      def map_reporter = ->(message) { stderr.puts message }
 
       def settings_for(path)
         Settings.for(File.dirname(File.expand_path(path)))
@@ -94,8 +92,8 @@ module NotionPublish
                           pairs: options[:properties] || [])
       end
 
-      def page_map_in(dir)
-        PageMap.locate_in(File.expand_path(dir), override: options[:pages_file], reporter: map_reporter)
+      def manifest_in(dir)
+        Manifest.locate_in(File.expand_path(dir), override: options[:manifest])
       end
 
       def no_destination_message

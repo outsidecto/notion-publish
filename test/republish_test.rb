@@ -134,7 +134,7 @@ class RepublishTest < Minitest::Test
       code, = run_cli(["republish", dir])
 
       assert_equal NotionPublish::CLI::OK, code
-      assert_equal [], NotionPublish::PageMap.new(map.path).entry(path).flag_properties
+      assert_equal [], NotionPublish::Manifest.new(map.path).entry(path).flag_properties
     end
   end
 
@@ -239,7 +239,8 @@ class RepublishTest < Minitest::Test
     with_published do |dir|
       FileUtils.mkdir_p(File.join(dir, "other"))
 
-      _, out, = run_cli(["republish", File.join(dir, "other"), "--pages-file", File.join(dir, "notion-pages.yml")])
+      _, out, = run_cli(["republish", File.join(dir, "other"), "--manifest",
+                         File.join(dir, "notion-publish-manifest.yml")])
 
       refute_includes out, "doc.md"
       assert_includes out, "0 documents"
@@ -265,9 +266,9 @@ class RepublishTest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = File.join(dir, "doc.md")
       File.write(path, body)
-      map = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+      map = NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME))
       NotionPublish::Publisher.new(client).publish(
-        NotionPublish::Document.load(path), target: target, map: map,
+        NotionPublish::Document.load(path), target: target, manifest: map,
                                             properties: NotionPublish::PropertySet.build(
                                               front_matter: NotionPublish::Document.load(path).properties,
                                               pairs: properties

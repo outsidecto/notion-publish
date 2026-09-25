@@ -32,7 +32,7 @@ module NotionPublish
       def call(path)
         document = Document.load(path)
         settings = settings_for(path)
-        map = page_map_for(path)
+        map = manifest_for(path)
         target = destination(document, settings, map&.entry(File.expand_path(path)))
         icon = options[:icon] || document.icon || settings.icon
         cover = options[:cover] || document.cover || settings.cover
@@ -42,7 +42,7 @@ module NotionPublish
         return dry_run(path, document, target, map, icon: icon, cover: cover) if options[:dry_run]
 
         warnings = []
-        outcome = publisher.publish(document, target: target, map: map, properties: property_set(document),
+        outcome = publisher.publish(document, target: target, manifest: map, properties: property_set(document),
                                               warnings: warnings, icon: icon, cover: cover, **publish_flags)
         report(path, outcome, target, warnings)
       end
@@ -51,7 +51,7 @@ module NotionPublish
 
       def publisher = @publisher ||= Publisher.new(client)
 
-      # A file the map already tracks is updated where its page is, so it needs
+      # A file the manifest already tracks is updated where its page is, so it needs
       # no destination. One that is given anyway is still used.
       def destination(document, settings, entry)
         named = options[:parent] || options[:database] || document.parent || document.database ||
@@ -69,14 +69,14 @@ module NotionPublish
         }
       end
 
-      # Without --link, a map is used only if one already exists; publishing
+      # Without --link, a manifest is used only if one already exists; publishing
       # never starts recording a corpus unasked.
-      def page_map_for(path)
+      def manifest_for(path)
         return nil if options[:link] == false
 
-        map = PageMap.locate(path, override: options[:pages_file], reporter: map_reporter)
+        map = Manifest.locate(path, override: options[:manifest])
         return map unless map.created?
-        return nil unless options[:link] || options[:pages_file]
+        return nil unless options[:link] || options[:manifest]
 
         stderr.puts "Creating #{map.path}"
         map

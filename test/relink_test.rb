@@ -95,17 +95,17 @@ class RelinkTest < Minitest::Test
 
   private
 
-  def map_in(dir) = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+  def map_in(dir) = NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME))
 
   def with_published(write_sources: true, notion: {})
     Dir.mktmpdir do |dir|
       stub_me
-      map = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+      map = NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME))
       %w[a b].each do |name|
         File.write(File.join(dir, "#{name}.md"), "x") if write_sources
         hash = notion[name] && Digest::SHA256.hexdigest(notion[name])
-        entry = NotionPublish::PageMap::Entry.new(id: IDS[name], url: "https://notion.so/#{name.upcase}",
-                                                  notion_sha256: hash)
+        entry = NotionPublish::Manifest::Entry.new(id: IDS[name], url: "https://notion.so/#{name.upcase}",
+                                                   notion_sha256: hash)
         map.record(File.join(dir, "#{name}.md"), entry)
       end
       yield dir

@@ -31,7 +31,7 @@ module NotionPublish
     end
   end
 
-  # A settings file or the identity map could not be read.
+  # A settings file or the manifest could not be read.
   class ConfigError < Error; end
 
   # Raised for any non-2xx response. Carries the parsed Notion error body so

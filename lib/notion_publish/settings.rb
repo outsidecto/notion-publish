@@ -8,7 +8,7 @@ module NotionPublish
   # Hand-written configuration. The tool reads it and never writes it, so
   # comments and formatting survive -- Ruby's YAML discards comments on read and
   # cannot put them back, which is why anything the tool rewrites lives in
-  # PageMap instead.
+  # Manifest instead.
   #
   # Every .notion-publish.yml from the repository root down to the document's
   # own directory is merged, closest winning, the way .rubocop.yml and
@@ -62,10 +62,8 @@ module NotionPublish
       raise ConfigError, "Could not parse #{path}: #{e.message}"
     end
 
-    # pages and databases are state from before it moved to PageMap. They are
-    # tolerated so an old file still loads; PageMap migrates them.
     def check_keys!(path, keys)
-      unknown = keys - KEYS - %w[pages databases]
+      unknown = keys - KEYS
       return if unknown.empty?
 
       raise ConfigError, "#{path}: unknown setting#{'s' if unknown.length > 1} " \

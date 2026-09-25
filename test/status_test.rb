@@ -164,7 +164,7 @@ class StatusTest < Minitest::Test
   def with_tree(files)
     Dir.mktmpdir do |dir|
       stub_me
-      map = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+      map = NotionPublish::Manifest.new(File.join(dir, NotionPublish::Manifest::FILENAME))
 
       files.each_with_index do |(name, kind), i|
         id = "page-#{i}"
@@ -173,7 +173,7 @@ class StatusTest < Minitest::Test
         source_hash = kind == :orphaned ? "x" : Digest::SHA256.hexdigest(BODY)
         source_hash = "stale" if %i[modified diverged].include?(kind)
 
-        map.record(path, NotionPublish::PageMap::Entry.new(
+        map.record(path, NotionPublish::Manifest::Entry.new(
                            id: id, url: "https://n/p/#{id}", parent: nil, properties: [],
                            source_sha256: source_hash, notion_sha256: Digest::SHA256.hexdigest("published"),
                            published_at: nil
