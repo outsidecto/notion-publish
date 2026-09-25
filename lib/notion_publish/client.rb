@@ -5,6 +5,7 @@ require "net/http"
 require "uri"
 
 require_relative "errors"
+require_relative "log"
 require_relative "version"
 
 module NotionPublish
@@ -37,12 +38,14 @@ module NotionPublish
       nil
     end
 
-    def initialize(token: nil, api_version: API_VERSION, sleeper: method(:sleep))
+    # +log+ is a Log, or nil for silence.
+    def initialize(token: nil, api_version: API_VERSION, sleeper: method(:sleep), log: nil)
       @token = token || self.class.token_from_env
       raise MissingToken, TOKEN_ENV_VARS if @token.nil? || @token.strip.empty?
 
       @api_version = api_version
       @sleeper = sleeper
+      @log = log
       @http = nil
     end
 
@@ -75,9 +78,12 @@ module NotionPublish
       req["Content-Type"] = "multipart/form-data; boundary=#{boundary}"
       req.body = multipart(boundary, path, content_type)
 
+      started = monotonic
       response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 120) do |http|
         http.request(req)
       end
+      # The body is file bytes, so describe it rather than print it.
+      trace(req, response, monotonic - started, sent: "(#{File.size(path)} bytes of #{content_type})")
       parsed = parse(response)
       return parsed if response.code.to_i.between?(200, 299)
 
@@ -90,7 +96,9 @@ module NotionPublish
     # Identity of the token itself. Cached: the CLI asks for it when building
     # error messages, which can happen more than once per run.
     def me
-      @me ||= get("/v1/users/me")
+      @me ||= get("/v1/users/me").tap do |found|
+        @log&.note("authenticated as #{found['name'].inspect} in #{found.dig('bot', 'workspace_name').inspect}")
+      end
     end
 
     # Human name of the connection or person this token authenticates as, for
@@ -145,11 +153,15 @@ module NotionPublish
 
     def request(klass, path, body: nil, query: nil, attempt: 1)
       req = build(klass, path, body, query)
+      started = monotonic
       response = http.request(req)
       status = response.code.to_i
+      trace(req, response, monotonic - started)
 
       if RETRYABLE_STATUSES.include?(status) && attempt < MAX_ATTEMPTS
-        @sleeper.call(retry_delay(response, attempt))
+        delay = retry_delay(response, attempt)
+        @log&.retrying(status, delay, attempt, MAX_ATTEMPTS)
+        @sleeper.call(delay)
         return request(klass, path, body: body, query: query, attempt: attempt + 1)
       end
 
@@ -159,6 +171,16 @@ module NotionPublish
       error_class = status == 429 ? RateLimited : ApiError
       raise error_class.new(status: status, body: parsed)
     end
+
+    def trace(req, response, seconds, sent: req.body)
+      return unless @log
+
+      @log.request(req.method, req.uri, response.code, seconds)
+      @log.body(">", sent)
+      @log.body("<", response.body)
+    end
+
+    def monotonic = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     # Notion sends Retry-After on 429. Everything else gets exponential backoff.
     def retry_delay(response, attempt)

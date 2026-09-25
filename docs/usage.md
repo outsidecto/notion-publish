@@ -55,6 +55,7 @@ Options:
 | `--untracked`                 | `status` only: list files that were never published             |
 | `--page URL_OR_ID`            | `adopt` only: the page this file corresponds to                 |
 | `-y`, `--yes`                 | `adopt` only: accept a title match without asking               |
+| `-v`, `--verbose`             | Log each API request to stderr; `-vv` adds shortened bodies     |
 | `--token TOKEN`               | API token, instead of the environment                           |
 | `--version`, `-h`, `--help`   |                                                                 |
 
@@ -562,6 +563,23 @@ Code 3 means a page was edited in Notion, `republish` skipped a file, or `status
 
 The tool never waits for input when there is no terminal. Where it would ask a question, it fails
 and names the flag that answers it.
+
+### Seeing the requests
+
+`-v` logs each API request to stderr, with its status and how long it took, plus any retries. It
+also names the connection and workspace the token belongs to, which settles "why can't it see my
+page?" when there is more than one token around.
+
+    $ notion-publish status -v
+    notion-publish: GET /v1/users/me -> 200 (212 ms)
+    notion-publish: authenticated as "Docs Publisher" in "Acme"
+    notion-publish: GET /v1/pages/3cfab123-cd45-818b-9a72-c2bd16e85a62 -> 200 (180 ms)
+    notion-publish: GET /v1/pages/3cfab123-cd45-818b-9a72-c2bd16e85a62/markdown -> 200 (240 ms)
+    ...
+
+`-vv` also prints each request and response body, shortened to 300 characters. The token is never
+logged. Bodies do contain document content, so think before turning on `-vv` in a CI job whose logs
+are kept or shared.
 
 ## How Notion treats Markdown
 

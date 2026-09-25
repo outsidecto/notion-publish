@@ -5,6 +5,7 @@ require "optparse"
 require_relative "client"
 require_relative "commands"
 require_relative "errors"
+require_relative "log"
 require_relative "page_map"
 require_relative "version"
 
@@ -37,7 +38,11 @@ module NotionPublish
       end
 
       def client
-        @client ||= Client.new(token: options[:token])
+        @client ||= Client.new(token: options[:token], log: log)
+      end
+
+      def log
+        Log.new(stderr, options[:verbose]) if options[:verbose]
       end
     end
 
@@ -183,6 +188,9 @@ module NotionPublish
           @options[:token] = v
         end
         o.on("--whoami", "Show what the token authenticates as") { @options[:whoami] = true }
+        o.on("-v", "--verbose", "Log each API request to stderr; -vv adds shortened bodies") do
+          @options[:verbose] = (@options[:verbose] || 0) + 1
+        end
         o.on("--version", "Show version") { @options[:version] = true }
         o.on("-h", "--help", "Show this message") { @options[:help] = true }
       end

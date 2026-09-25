@@ -8,6 +8,9 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- `-v` logs each API request to stderr, with status, timing, and retries, and names the workspace
+  the token belongs to. `-vv` adds shortened request and response bodies. The token is never
+  logged.
 - `notion-publish republish [DIR]` updates every page the identity map tracks, without naming
   files. Each page is updated where it already is. Options that name a destination or describe a
   single document are ignored with a warning.
