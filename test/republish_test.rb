@@ -247,6 +247,16 @@ class RepublishTest < Minitest::Test
     end
   end
 
+  def test_json_includes_files_that_never_reached_notion
+    with_published do |dir, path|
+      File.delete(path)
+
+      _, out, = run_cli(["republish", dir, "--json"])
+
+      assert_equal({ "source" => "doc.md", "action" => "orphaned" }, JSON.parse(out.lines.first))
+    end
+  end
+
   def test_a_failure_is_reported_and_fails_the_run
     with_published do |dir, path|
       File.write(path, "# Title\n\nRewritten.\n")

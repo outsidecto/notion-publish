@@ -20,8 +20,9 @@ Unchanged policies/access-control.md
 
 ## What it does
 
-- **Updates pages in place.** A committed file, `notion-pages.yml`, records which page each file
-  became. Republishing replaces the page body and keeps its URL, so links to it keep working.
+- **Updates pages in place.** A committed file, `notion-publish-manifest.yml`, records which page
+  each file became. Republishing replaces the page body and keeps its URL, so links to it keep
+  working.
 - **Republishes everything it tracks** with one command, `notion-publish republish`, using what it
   recorded about each file.
 - **Protects edits made in Notion.** If someone edited the page in Notion since the last publish,
@@ -33,8 +34,8 @@ Unchanged policies/access-control.md
 - **Uploads local images** and places them in the page.
 - **Fixes wrapped text.** Notion treats each line of a hard-wrapped paragraph as its own block. The
   tool joins the lines first.
-- **Reports drift.** `notion-publish status` lists files changed locally, pages changed in Notion,
-  and files that were never published.
+- **Reports drift.** `notion-publish status` lists files changed locally, pages changed in Notion
+  or moved to Notion's trash, and files that were never published.
 
 Notion does the Markdown conversion itself, through its
 [Markdown API](https://developers.notion.com/). The gem has no runtime dependencies beyond the Ruby
@@ -72,8 +73,8 @@ gem "notion_publish", require: false
        notion-publish docs/onboarding.md --link \
          --parent 'https://app.notion.com/p/Team-Docs-2efab123...'
 
-   `--link` creates `notion-pages.yml` at the repository root. Commit it. Without it, the next run
-   cannot find the page and will create a second copy.
+   `--link` creates `notion-publish-manifest.yml` at the repository root. Commit it. Without it,
+   the next run cannot find the page and will create a second copy.
 
 5. **Edit the file and publish again.** The page is updated in place.
 
@@ -111,7 +112,7 @@ done
 notion-publish relink
 ```
 
-After that, one command updates every page the identity map tracks:
+After that, one command updates every page the manifest tracks:
 
 ```console
 $ notion-publish republish
@@ -132,7 +133,7 @@ Check where things stand at any time:
 
 ```console
 $ notion-publish status
-/repo/notion-pages.yml -- 12 tracked
+/repo/notion-publish-manifest.yml -- 12 tracked
 
 Changed locally (1)
   policies/access-control.md
@@ -148,7 +149,7 @@ Changed in Notion (1)
 
 ### Publishing from GitHub Actions
 
-This workflow republishes on every push to `main` and commits the updated identity map back.
+This workflow republishes on every push to `main` and commits the updated manifest back.
 Store the token as a repository secret named `NOTION_API_TOKEN`.
 
 ```yaml
@@ -175,12 +176,12 @@ jobs:
         env:
           NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
         run: notion-publish republish
-      - name: Commit notion-pages.yml
+      - name: Commit notion-publish-manifest.yml
         if: success() || failure()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add notion-pages.yml
+          git add notion-publish-manifest.yml
           if ! git diff --cached --quiet; then
             git commit -m "Record published Notion pages"
             git push
@@ -194,7 +195,7 @@ that file with `--force`.
 ## Documentation
 
 [docs/usage.md](docs/usage.md) is the full reference. It covers destinations, settings, every
-property type, the identity map, adopting pages that already exist, images, exit codes, and JSON
+property type, the manifest, adopting pages that already exist, images, exit codes, and JSON
 output.
 
 ## Known limits

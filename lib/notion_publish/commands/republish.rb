@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "json"
+
 require_relative "command"
 require_relative "reporting"
 require_relative "../decoration"
@@ -109,10 +111,17 @@ module NotionPublish
       end
 
       def print_result(result)
+        return report(result.key, result.outcome, result.target, result.warnings) if result.outcome
+
+        # A script reading --json must see every file, including those that
+        # never reached Notion.
+        if options[:json]
+          stdout.puts JSON.generate({ "source" => result.key, "action" => result.action.to_s,
+                                      "error" => result.message }.compact)
+        end
         case result.action
         when :orphaned then stderr.puts "Skipped #{result.key}: no source file. Its Notion page is still live."
         when :failed then stderr.puts "Failed #{result.key}: #{result.message}"
-        else report(result.key, result.outcome, result.target, result.warnings)
         end
       end
 
