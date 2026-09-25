@@ -2,6 +2,7 @@
 
 require_relative "notion_publish/version"
 require_relative "notion_publish/errors"
+require_relative "notion_publish/notion_digest"
 require_relative "notion_publish/reference"
 require_relative "notion_publish/target"
 require_relative "notion_publish/sharing"

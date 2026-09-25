@@ -4,6 +4,7 @@ require "digest"
 require "json"
 require "time"
 
+require_relative "notion_digest"
 require_relative "decoration"
 require_relative "errors"
 require_relative "fixups"
@@ -255,7 +256,7 @@ module NotionPublish
     # not byte-stable, so the sent form would never match a later read.
     def drift(entry)
       return nil unless entry.notion_sha256
-      return nil if Digest::SHA256.hexdigest(read_markdown(entry.id)) == entry.notion_sha256
+      return nil if NotionDigest.of(read_markdown(entry.id)) == entry.notion_sha256
 
       <<~MSG.strip
         #{entry.url} has changed in Notion since it was published.
@@ -379,7 +380,7 @@ module NotionPublish
         source_sha256: source_hash,
         properties_sha256: digest(props.document),
         flag_properties_sha256: flag_digest,
-        notion_sha256: Digest::SHA256.hexdigest(read_markdown(page["id"])),
+        notion_sha256: NotionDigest.of(read_markdown(page["id"])),
         published_at: Time.now.utc.iso8601
       )
     end

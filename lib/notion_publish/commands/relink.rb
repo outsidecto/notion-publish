@@ -2,6 +2,7 @@
 
 require "digest"
 
+require_relative "../notion_digest"
 require_relative "command"
 require_relative "../links"
 
@@ -43,9 +44,9 @@ module NotionPublish
       # status would call it an edit made in Notion. Only when the page was in
       # sync beforehand: an edit someone else made must stay visible.
       def rehash(map, key, entry, before)
-        return unless entry.notion_sha256 == Digest::SHA256.hexdigest(before)
+        return unless entry.notion_sha256 == NotionDigest.of(before)
 
-        after = Digest::SHA256.hexdigest(read_markdown(entry.id))
+        after = NotionDigest.of(read_markdown(entry.id))
         map.record(File.expand_path(key, map.dir), entry.with(notion_sha256: after))
       end
 

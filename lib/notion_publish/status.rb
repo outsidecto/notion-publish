@@ -2,6 +2,7 @@
 
 require "digest"
 
+require_relative "notion_digest"
 require_relative "errors"
 require_relative "page_map"
 
@@ -92,7 +93,7 @@ module NotionPublish
       return false unless entry.notion_sha256
 
       markdown = @client.get("/v1/pages/#{entry.id}/markdown")["markdown"].to_s
-      Digest::SHA256.hexdigest(markdown) != entry.notion_sha256
+      NotionDigest.of(markdown) != entry.notion_sha256
     end
 
     # Markdown files under the map that have never been published. Reported for

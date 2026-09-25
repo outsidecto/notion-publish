@@ -20,6 +20,9 @@ All notable changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- A page with an uploaded image read as "changed in Notion" on every check, because Notion
+  returns uploaded files as signed S3 URLs with a new signature on each read. The signature is now
+  removed before hashing. Pages without uploaded images hash as before.
 - `relink` now records each fixed page's new Notion hash when the page was in sync beforehand.
   Before, every relinked page then read as "changed in Notion" and blocked the next publish.
 - A page deleted in Notion sits in the trash, where the API still returns it. `status` reported
