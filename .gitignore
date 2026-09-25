@@ -1,0 +1,22 @@
+# Build artifacts
+*.gem
+/pkg/
+/tmp/
+
+# Bundler — Gemfile.lock is not committed for a library, so that the gem is
+# tested against the dependency versions a consumer would actually resolve.
+/.bundle/
+/vendor/bundle/
+Gemfile.lock
+
+# Credentials. NOTION_API_TOKEN belongs in the environment, never in the repo.
+.env
+.env.*
+
+# Local tool state
+/.claude/settings.local.json
+/coverage/
+/.yardoc/
+
+# macOS
+.DS_Store

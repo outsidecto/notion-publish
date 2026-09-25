@@ -1,0 +1,60 @@
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
+
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "vendor/**/*"
+    - "pkg/**/*"
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+# The codebase uses single quotes inside interpolation, which reads more
+# cleanly when the outer string is double-quoted.
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: single_quotes
+
+Style/FormatStringToken:
+  EnforcedStyle: unannotated
+
+Layout/LineLength:
+  Max: 120
+
+# User-facing messages are long heredocs, and the CLI's option table is long
+# by nature. Method size is watched; class size is not.
+Metrics/ClassLength:
+  Enabled: false
+
+Metrics/ModuleLength:
+  Enabled: false
+
+Metrics/MethodLength:
+  Max: 25
+  Exclude:
+    - "test/**/*"
+
+Metrics/BlockLength:
+  Exclude:
+    - "test/**/*"
+    - "*.gemspec"
+
+Metrics/AbcSize:
+  Max: 32
+  Exclude:
+    - "test/**/*"
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/PerceivedComplexity:
+  Max: 10
+
+Metrics/ParameterLists:
+  CountKeywordArgs: false
+
+Minitest/MultipleAssertions:
+  Max: 8
