@@ -218,6 +218,59 @@ class PublishStateTest < Minitest::Test
     end
   end
 
+  def test_flag_set_properties_and_overrides_are_recorded
+    with_doc do |path, map|
+      NotionPublish::Publisher.new(client).publish(
+        NotionPublish::Document.load(path), target: target, map: map,
+                                            properties: NotionPublish::PropertySet.build(pairs: ["Function=Legal"]),
+                                            title: "Chosen", title_given: true, keep_h1: true
+      )
+      entry = map.entry(path)
+
+      assert_equal ["Function"], entry.flag_properties
+      assert_equal "Chosen", entry.title_override
+      assert entry.keep_h1
+      refute_nil entry.flag_properties_sha256
+      assert_equal ["Company Information", "Function"], entry.properties
+    end
+  end
+
+  def test_a_publish_without_flags_records_an_empty_list
+    with_doc do |path, map|
+      publish(path, map)
+      entry = map.entry(path)
+
+      assert_equal [], entry.flag_properties
+      assert_nil entry.title_override
+      assert_nil entry.keep_h1
+      assert_nil entry.flag_properties_sha256
+      refute_includes File.read(map.path), "title_override"
+    end
+  end
+
+  def test_changing_a_flag_value_is_still_a_change
+    with_doc do |path, map|
+      publish(path, map, properties: ["Function=Legal"])
+
+      assert_equal :unchanged, publish(path, map, properties: ["Function=Legal"]).action
+      assert_equal :properties, publish(path, map, properties: ["Function="]).action
+    end
+  end
+
+  # Entries written before the digest was split hash every property together.
+  # Without flags, that is the same hash, so they stay unchanged.
+  def test_an_older_entry_without_flags_is_still_unchanged
+    with_doc do |path, map|
+      publish(path, map)
+      raw = map.entry(path).to_h.except("flag_properties")
+      map.pages[map.key_for(path)] = raw
+      map.save
+      WebMock.reset_executed_requests!
+
+      assert_equal :unchanged, publish(path, map).action
+    end
+  end
+
   private
 
   def target

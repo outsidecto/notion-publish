@@ -23,31 +23,34 @@ module NotionPublish
       # Settings belong in .notion-publish.yml, which this tool never rewrites.
     TEXT
 
-    Entry = Data.define(:id, :url, :parent, :properties, :source_sha256, :properties_sha256,
+    ENTRY_FIELDS = %w[id url parent properties flag_properties title_override keep_h1 source_sha256
+                      properties_sha256 flag_properties_sha256 notion_sha256 published_at].freeze
+
+    # One published document.
+    #
+    # +flag_properties+ names the properties whose values came from
+    # --property or --properties-json rather than front matter. Their values
+    # are not recorded, so `republish` leaves them alone. It is nil on entries
+    # written before it existed, which is how `republish` recognises them.
+    # +title_override+ and +keep_h1+ record --title and --keep-h1 for the
+    # same reason.
+    Entry = Data.define(:id, :url, :parent, :properties, :flag_properties, :title_override, :keep_h1,
+                        :source_sha256, :properties_sha256, :flag_properties_sha256,
                         :notion_sha256, :published_at) do
       # Only the page itself is required. Everything else accumulates: adopting
       # records no source hash, and older entries predate later fields.
-      def initialize(id:, url:, parent: nil, properties: [], source_sha256: nil,
-                     properties_sha256: nil, notion_sha256: nil, published_at: nil)
+      def initialize(id:, url:, parent: nil, properties: [], flag_properties: nil, title_override: nil,
+                     keep_h1: nil, source_sha256: nil, properties_sha256: nil, flag_properties_sha256: nil,
+                     notion_sha256: nil, published_at: nil)
         super
       end
 
       def to_h
-        {
-          "id" => id, "url" => url, "parent" => parent,
-          "properties" => properties, "source_sha256" => source_sha256,
-          "properties_sha256" => properties_sha256,
-          "notion_sha256" => notion_sha256, "published_at" => published_at
-        }.compact
+        ENTRY_FIELDS.to_h { |field| [field, public_send(field)] }.compact
       end
 
       def self.from(hash)
-        new(
-          id: hash["id"], url: hash["url"], parent: hash["parent"],
-          properties: hash["properties"] || [], source_sha256: hash["source_sha256"],
-          properties_sha256: hash["properties_sha256"],
-          notion_sha256: hash["notion_sha256"], published_at: hash["published_at"]
-        )
+        new(**ENTRY_FIELDS.to_h { |field| [field.to_sym, hash[field]] }, properties: hash["properties"] || [])
       end
     end
 

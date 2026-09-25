@@ -40,7 +40,8 @@ module NotionPublish
         markdown = client.get("/v1/pages/#{candidate.id}/markdown")["markdown"].to_s
         map.workspace_id = client.me.dig("bot", "workspace_id")
         map.record(source, PageMap::Entry.new(id: candidate.id, url: candidate.url,
-                                              notion_sha256: Digest::SHA256.hexdigest(markdown)))
+                                              notion_sha256: Digest::SHA256.hexdigest(markdown),
+                                              flag_properties: []))
       end
 
       def choose(document, path)

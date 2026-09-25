@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "digest"
-require "json"
 
 require_relative "command"
+require_relative "reporting"
 require_relative "../decoration"
 require_relative "../document"
 require_relative "../publisher"
@@ -13,6 +13,8 @@ module NotionPublish
     # Publishes one Markdown file, or with --dry-run says what publishing it
     # would do.
     class Publish < Command
+      include Reporting
+
       # How a dry run shows each kind of property value.
       SUMMARIES = {
         "title" => ->(value) { value.map { |v| v.dig("text", "content") }.join.inspect },
@@ -65,39 +67,6 @@ module NotionPublish
 
         stderr.puts "Creating #{map.path}"
         map
-      end
-
-      def report(path, outcome, target, warnings)
-        warnings.each { |w| stderr.puts w }
-
-        if outcome.blocked?
-          report_json(path, outcome, target) if options[:json]
-          stderr.puts outcome.detail
-          return CLI::BLOCKED
-        end
-
-        options[:json] ? report_json(path, outcome, target) : report_text(path, outcome, target)
-        CLI::OK
-      end
-
-      def report_json(path, outcome, target)
-        stdout.puts JSON.generate(
-          "source" => path, "action" => outcome.action.to_s,
-          "id" => outcome.id, "url" => outcome.url,
-          "parent" => target.id, "parent_name" => target.title
-        )
-      end
-
-      def report_text(path, outcome, target)
-        case outcome.action
-        when :unchanged
-          stdout.puts "Unchanged #{path}"
-          return
-        when :properties then stdout.puts "Updated properties on #{path}"
-        when :created then stdout.puts "Published #{path} to #{target.describe}"
-        else stdout.puts "Updated #{path} to #{target.describe}"
-        end
-        stdout.puts "  #{outcome.url}"
       end
 
       # A dry run resolves, validates every property against the live schema,

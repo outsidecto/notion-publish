@@ -22,6 +22,8 @@ Unchanged policies/access-control.md
 
 - **Updates pages in place.** A committed file, `notion-pages.yml`, records which page each file
   became. Republishing replaces the page body and keeps its URL, so links to it keep working.
+- **Republishes everything it tracks** with one command, `notion-publish republish`, using what it
+  recorded about each file.
 - **Protects edits made in Notion.** If someone edited the page in Notion since the last publish,
   the tool stops and exits with code 3 rather than overwriting their work.
 - **Sets database properties** from front matter or flags. Values are checked against the database
@@ -99,8 +101,8 @@ properties:
 ...
 ```
 
-Publish the directory with a loop, then run `relink` to fix links to documents that were published
-later in the loop:
+The first time, publish the directory with a loop. Then run `relink` to fix links to documents
+that were published later in the loop:
 
 ```sh
 for f in policies/*.md; do
@@ -109,7 +111,20 @@ done
 notion-publish relink
 ```
 
-Running the loop again is safe. Unchanged files report `Unchanged` and cost one API call.
+After that, one command updates every page the identity map tracks:
+
+```console
+$ notion-publish republish
+Unchanged policies/access-control.md
+Updated policies/incident-response.md to database "Policies" (2efab123-...)
+  https://app.notion.com/p/Incident-Response-Policy-...
+12 documents: 11 unchanged, 1 updated
+```
+
+`republish` needs no file names and no destination. Each page is updated where it already is, from
+the file's current front matter plus any `--title` or `--keep-h1` it was last published with.
+Properties that were set with `--property` are left as they are. A new file is not picked up until
+you publish it once by name.
 
 Check where things stand at any time:
 
@@ -126,8 +141,8 @@ $ notion-publish status
 
 ### Publishing from GitHub Actions
 
-This workflow publishes on every push to `main` and commits the updated identity map back. Store
-the token as a repository secret named `NOTION_API_TOKEN`.
+This workflow republishes on every push to `main` and commits the updated identity map back.
+Store the token as a repository secret named `NOTION_API_TOKEN`.
 
 ```yaml
 name: Publish to Notion
@@ -149,16 +164,10 @@ jobs:
         with:
           ruby-version: "3.4"
       - run: gem install notion_publish
-      - name: Publish
+      - name: Republish
         env:
           NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
-        run: |
-          status=0
-          for f in policies/*.md; do
-            notion-publish "$f" --link || status=$?
-          done
-          notion-publish relink
-          exit $status
+        run: notion-publish republish
       - name: Commit notion-pages.yml
         if: success() || failure()
         run: |
@@ -171,8 +180,9 @@ jobs:
           fi
 ```
 
-A page edited in Notion makes its file exit with code 3, which fails the job. The other files still
-publish. Look at the page, move the change into the Markdown, and publish that file with `--force`.
+If a page was edited in Notion, `republish` leaves it alone and exits with code 3, which fails the
+job. The other files still publish. Look at the page, move the change into the Markdown, and publish
+that file with `--force`.
 
 ## Documentation
 
@@ -182,7 +192,7 @@ output.
 
 ## Known limits
 
-- One file per run. Use a shell loop.
+- A new file must be published once by name before `republish` includes it.
 - Images inside a paragraph cannot be placed, since Notion has no inline images.
 - Files over 20 MB are not uploaded, because Notion's multi-part upload is not implemented.
 - H5 and H6 become heading 4 in Notion.

@@ -11,6 +11,7 @@ This is the full reference for `notion-publish`. For an overview and a quick sta
 - [Title, icon, and cover](#title-icon-and-cover)
 - [Republishing and the identity map](#republishing-and-the-identity-map)
 - [Publishing a set of files](#publishing-a-set-of-files)
+- [Republishing everything](#republishing-everything)
 - [Links between documents](#links-between-documents)
 - [Adopting pages that already exist](#adopting-pages-that-already-exist)
 - [Checking status](#checking-status)
@@ -24,6 +25,7 @@ This is the full reference for `notion-publish`. For an overview and a quick sta
 
     notion-publish FILE [options]             publish one Markdown file
     notion-publish status [DIR]               what would happen if you published everything
+    notion-publish republish [DIR]            update every page notion-pages.yml tracks
     notion-publish relink [DIR]               fix links to documents published later
     notion-publish adopt FILE [options]       record a page this file already corresponds to
     notion-publish properties [options]       show the destination's schema
@@ -252,14 +254,33 @@ pages:
     properties:
     - Function
     - Name
+    - Owner
+    flag_properties:
+    - Owner
+    title_override: Access Control
     source_sha256: 2b1f...
     properties_sha256: 77ad...
+    flag_properties_sha256: 51e0...
     notion_sha256: 9c04...
     published_at: '2026-09-02T03:11:00Z'
 ```
 
 The file holds page IDs, URLs, and hashes. It holds no credentials or page content. Keys are sorted
 so that publishing one document changes one entry in the diff.
+
+| Field                    | Meaning                                                             |
+|--------------------------|---------------------------------------------------------------------|
+| `properties`             | Every property the tool set, so it knows which ones it owns         |
+| `flag_properties`        | The ones whose values came from `--property` or `--properties-json` |
+| `title_override`         | The `--title` given, if any                                         |
+| `keep_h1`                | Present when `--keep-h1` was given                                  |
+| `source_sha256`          | Hash of the Markdown file                                           |
+| `properties_sha256`      | Hash of the property values that came from the document             |
+| `flag_properties_sha256` | Hash of the property values that came from flags                    |
+| `notion_sha256`          | Hash of the page as Notion returned it after publishing             |
+
+Flag-set property values are hashed but not stored. `republish` uses `flag_properties`,
+`title_override`, and `keep_h1` to repeat what the last publish of each file did.
 
 `--link` starts the file if it does not exist. Once it exists, every publish uses it. `--no-link`
 ignores it and always creates a new page.
@@ -315,6 +336,71 @@ every file's front matter. If one document needs a different value, publish it s
 the property into front matter.
 
 The identity map is locked while it is written, so parallel runs (`xargs -P`) do not lose entries.
+
+Once the files are published, use `republish` to keep them current.
+
+## Republishing everything
+
+`republish` updates every page the identity map tracks, without naming files:
+
+    notion-publish republish            # every entry in the map
+    notion-publish republish policies   # only entries for files under policies/
+
+Each file goes through the same checks as a single publish, and reports `Unchanged`, `Updated`,
+`Updated properties`, or a problem. A summary line follows:
+
+    12 documents: 10 unchanged, 1 updated, 1 changed in Notion
+
+### What republish uses
+
+Each page is updated where it already is, so no destination is needed. The recorded parent supplies
+the schema. For each file, `republish` uses:
+
+- the file's current Markdown and front matter
+- `icon` and `cover` from front matter or `.notion-publish.yml`
+- the `--title` and `--keep-h1` recorded from the last single-file publish
+
+Options that describe one document or one destination are ignored, with a warning. They are
+`--parent`, `--database`, `--property`, `--properties-json`, `--title`, `--icon`, `--cover`,
+`--keep-h1`, `--link`, `--no-link`, `--page`, `--yes`, and `--local`. Changing a destination never
+moves an existing page. `--no-upload`, `--force`, `--force-properties`, `--json`, and
+`--pages-file` apply to every file.
+
+### Properties set with flags
+
+The values of properties set with `--property` or `--properties-json` are not recorded, so
+`republish` cannot send them again. It leaves those properties alone. It does not set them and does
+not clear them. Everything else follows the usual rules, so a property you add to or remove from
+front matter is set or cleared.
+
+To change a flag-set property, publish that file by name with the new flag. To hand a property over
+to front matter, add it to front matter and publish the file once by name without the flag.
+
+If `republish` has to recreate a page because the old one was deleted, the new page does not have
+the flag-set properties. It warns and names them.
+
+### Entries from older versions
+
+Entries written before `flag_properties` was added do not say which properties came from flags.
+`republish` updates such an entry only if the file's front matter produces exactly the properties
+recorded last time. Otherwise it skips the file, explains why, and exits with code 3. Publish that
+file once by name, with whatever flags it needs. That records the new fields, and `republish`
+handles it from then on.
+
+### Not included
+
+- Files with no entry. Publishing a new document is something you do by name, once.
+- Entries whose file is gone. They are reported, and their pages are left in Notion.
+- `--dry-run`. Use `notion-publish status` to see what `republish` would do.
+
+Links are rewritten as each page is written. Every tracked file already has a URL, so `republish`
+does not need a `relink` pass.
+
+A failure in one file is reported, and the rest still run. The exit code is 1 if anything failed, 3
+if anything was blocked or skipped, and 0 otherwise.
+
+`--force` applies to every file. Use it with `republish` only when every page reported as changed in
+Notion should be overwritten, for example after Notion changes how it renders Markdown.
 
 ## Links between documents
 
@@ -436,20 +522,23 @@ The leading H1 is also removed, as described under [Title, icon, and cover](#tit
 
 ## Scripting and exit codes
 
-| Code | Meaning                                                                           |
-|------|-----------------------------------------------------------------------------------|
-| 0    | Published, updated, or nothing needed doing                                       |
-| 1    | Failed                                                                            |
-| 2    | Usage error                                                                       |
-| 3    | Stopped and needs a person: the page was edited in Notion, or `status` found work |
-| 130  | Interrupted                                                                       |
+| Code | Meaning                                     |
+|------|---------------------------------------------|
+| 0    | Published, updated, or nothing needed doing |
+| 1    | Failed                                      |
+| 2    | Usage error                                 |
+| 3    | Stopped and needs a person (see below)      |
+| 130  | Interrupted                                 |
+
+Code 3 means a page was edited in Notion, `republish` skipped a file, or `status` found work to do.
 
 `--json` prints one object per document on stdout. Messages go to stderr.
 
     {"source":"policies/access-control.md","action":"updated","id":"3cfab123-...",
      "url":"https://app.notion.com/p/...","parent":"2efab123-...","parent_name":"Policies"}
 
-`action` is `created`, `updated`, `properties`, `unchanged`, or `blocked`.
+`action` is `created`, `updated`, `properties`, `unchanged`, `blocked`, or `skipped` (from
+`republish`). `republish --json` prints no summary line.
 
 The tool never waits for input when there is no terminal. Where it would ask a question, it fails
 and names the flag that answers it.
@@ -466,7 +555,8 @@ join continuation lines. The soft-wrap fix above handles this.
 
 ## Known limits
 
-- One file per run. Use a shell loop, then `relink`.
+- A new file has to be published once by name. `republish` covers only files already in the
+  identity map.
 - An image inside a paragraph cannot become a block.
 - Files over 20 MB need Notion's multi-part upload, which is not implemented.
 - `files` properties cannot be set.

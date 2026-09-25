@@ -6,6 +6,24 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `notion-publish republish [DIR]` updates every page the identity map tracks, without naming
+  files. Each page is updated where it already is. Options that name a destination or describe a
+  single document are ignored with a warning.
+- Entries in `notion-pages.yml` record `flag_properties` (properties set with `--property` or
+  `--properties-json`), `title_override` (`--title`), and `keep_h1` (`--keep-h1`), so `republish`
+  can repeat what the last publish of each file did.
+
+### Changed
+
+- `properties_sha256` now covers only the property values that came from the document. Flag-set
+  values have their own hash, `flag_properties_sha256`. Entries published without flags keep the
+  same hash, so they still report `Unchanged`.
+- `republish` leaves flag-set properties alone. It updates an entry written before
+  `flag_properties` existed only when front matter reproduces its recorded properties, and
+  otherwise skips it with an explanation.
+
 ## [0.1.0] - 2026-09-24
 
 First public release.

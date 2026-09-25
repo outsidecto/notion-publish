@@ -33,10 +33,20 @@ module NotionPublish
 
     # Everything one publish needs, gathered once so the steps below do not
     # pass a dozen arguments between them. +title+ is already resolved.
+    #
+    # +preserve+ lists properties this run must neither set nor clear: on a
+    # republish, the ones an earlier run set from flags, whose values were
+    # never recorded.
     Job = Data.define(:document, :target, :map, :properties, :title, :title_given,
-                      :warnings, :upload, :keep_h1, :icon, :cover) do
+                      :warnings, :upload, :keep_h1, :icon, :cover, :preserve, :republish) do
       def source = File.expand_path(document.path)
       def base_dir = File.dirname(source)
+    end
+
+    # Built property payloads, split by where the values came from: the
+    # document (front matter, the derived title, a recorded --title) or flags.
+    Properties = Data.define(:document, :flags) do
+      def all = document.merge(flags)
     end
 
     # The Markdown to send, and the local images it stands in for.
@@ -51,26 +61,51 @@ module NotionPublish
                 icon: nil, cover: nil, force: false, force_properties: false)
       job = Job.new(document: document, target: target, map: map, properties: properties,
                     title: title || document.title, title_given: title_given, warnings: warnings,
-                    upload: upload, keep_h1: keep_h1, icon: icon, cover: cover)
-      source_hash = Digest::SHA256.hexdigest(File.binread(job.source))
-      existing = live_entry(job)
+                    upload: upload, keep_h1: keep_h1, icon: icon, cover: cover, preserve: [], republish: false)
+      run(job, force: force, force_properties: force_properties)
+    end
 
-      return write(job, existing, source_hash) if existing.nil? || force
+    # Publishes a document again from what its entry recorded: front matter,
+    # plus any --title and --keep-h1 the last single-file publish was given.
+    # Properties that were set from flags are left as they are.
+    def republish(document, entry:, target:, map:, warnings: [], upload: true, icon: nil, cover: nil,
+                  force: false, force_properties: false)
+      job = Job.new(document: document, target: target, map: map,
+                    properties: PropertySet.build(front_matter: document.properties),
+                    title: entry.title_override || document.title, title_given: !entry.title_override.nil?,
+                    warnings: warnings, upload: upload, keep_h1: entry.keep_h1 == true, icon: icon, cover: cover,
+                    preserve: entry.flag_properties || [], republish: true)
 
-      republish(job, existing, source_hash, force_properties)
+      if (reason = unrecorded_flags(job, entry))
+        return Outcome.new(action: :skipped, page: { "url" => entry.url, "id" => entry.id }, entry: entry,
+                           detail: reason)
+      end
+
+      run(job, force: force, force_properties: force_properties)
     end
 
     def scan_media(document)
       Media.scan(document.body, base_dir: File.dirname(File.expand_path(document.path)))
     end
 
-    def schema_for(target) = Schema.for(@client, target)
+    # Cached per destination, since a republish reads the same schema for
+    # every document in it.
+    def schema_for(target)
+      (@schemas ||= {})[target.id] ||= Schema.for(@client, target)
+    end
+
+    # Every property payload this run would set.
+    def build_properties(schema, set, title, title_given, warnings = [])
+      split_properties(schema, set, title, title_given, warnings).all
+    end
 
     # An explicit --title wins over a property of the same name. Otherwise the
-    # derived title only fills in when the properties did not set one.
-    def build_properties(schema, set, title, title_given, warnings = [])
+    # derived title only fills in when the properties did not set one. Keys in
+    # +skip+ are left out entirely.
+    def split_properties(schema, set, title, title_given, warnings = [], skip: [])
       users = Users.new(@client)
-      built = {}
+      document = {}
+      flags = {}
 
       set.each do |name, values|
         # A page parent holds nothing but a title. Front matter written for a
@@ -82,18 +117,57 @@ module NotionPublish
         end
 
         key, payload = schema.build(name, values, users: users)
-        built[key] = payload
+        next if skip.include?(key)
+
+        (set.explicit?(name) ? flags : document)[key] = payload
       end
 
-      title_key = schema.title_key
-      if title_given || !built.key?(title_key)
-        built[title_key] = { "title" => [{ "type" => "text", "text" => { "content" => title.to_s } }] }
-      end
-
-      built
+      add_title(document, flags, schema.title_key, title: title, title_given: title_given, skip: skip)
+      Properties.new(document: document.except(*flags.keys), flags: flags)
     end
 
     private
+
+    def add_title(document, flags, key, title:, title_given:, skip:)
+      payload = { "title" => [{ "type" => "text", "text" => { "content" => title.to_s } }] }
+      if title_given
+        flags.delete(key)
+        document[key] = payload
+      elsif !document.key?(key) && !flags.key?(key) && !skip.include?(key)
+        document[key] = payload
+      end
+    end
+
+    def run(job, force:, force_properties:)
+      source_hash = Digest::SHA256.hexdigest(File.binread(job.source))
+      existing = live_entry(job)
+
+      return write(job, existing, source_hash) if existing.nil? || force
+
+      update_existing(job, existing, source_hash, force_properties)
+    end
+
+    # An entry written before flag-set properties were recorded cannot say
+    # which of its properties came from flags. Republishing it from front
+    # matter alone would clear those, so it is only safe when front matter
+    # still produces exactly what was set last time.
+    def unrecorded_flags(job, entry)
+      return nil unless entry.flag_properties.nil?
+      return nil if entry.properties.empty?
+
+      props = split_properties(schema_for(job.target), job.properties, job.title, job.title_given)
+      return nil if entry.properties_sha256 && digest(props.document) == entry.properties_sha256
+
+      <<~MSG.strip
+        #{entry.url} was published before notion-publish recorded which properties
+        came from flags, and its front matter no longer produces the properties it
+        was given. Republishing it could clear a property that was set with
+        --property or change a title set with --title.
+
+        Publish this file on its own once, with whatever flags it needs. After
+        that, republish handles it.
+      MSG
+    end
 
     # The recorded entry for this document, unless its page has gone. An entry
     # pointing at a page that no longer exists is stale rather than fatal:
@@ -115,7 +189,7 @@ module NotionPublish
     # The page exists and --force was not given. The body and the properties
     # are compared separately, because reworking only the properties should
     # not mean rewriting every block on the page.
-    def republish(job, existing, source_hash, force_properties)
+    def update_existing(job, existing, source_hash, force_properties)
       same_body = existing.source_sha256 == source_hash
       same_properties = !force_properties && properties_unchanged?(job, existing)
       return unchanged(existing) if same_body && same_properties
@@ -136,25 +210,37 @@ module NotionPublish
     # storing either in the map.
     def digest(built) = Digest::SHA256.hexdigest(JSON.generate(built.sort.to_h))
 
+    # The document's properties and the flag-set ones are hashed separately,
+    # so a republish, which leaves flag-set properties alone, can still tell
+    # whether anything it owns has changed.
     def properties_unchanged?(job, entry)
       # An entry written before this hash existed, or by `adopt`, cannot prove
       # its properties match. Apply them once; that records the digest and every
       # later run can answer properly.
       return false unless entry.properties_sha256
 
-      built = build_properties(schema_for(job.target), job.properties, job.title, job.title_given)
-      digest(built) == entry.properties_sha256
+      props = split_properties(schema_for(job.target), job.properties, job.title, job.title_given,
+                               skip: job.preserve)
+      return false unless digest(props.document) == entry.properties_sha256
+
+      job.republish || flags_digest(props) == entry.flag_properties_sha256
     rescue Error
       false
+    end
+
+    def flags_digest(props) = props.flags.empty? ? nil : digest(props.flags)
+
+    def split_for(job, schema)
+      split_properties(schema, job.properties, job.title, job.title_given, job.warnings, skip: job.preserve)
     end
 
     # Same body, different properties: patch the properties and leave the blocks
     # alone. Cheaper, and it does not disturb images or block ids.
     def properties_only(job, existing, source_hash)
       schema = schema_for(job.target)
-      desired = build_properties(schema, job.properties, job.title, job.title_given, job.warnings)
-      page = update_properties(job, existing, desired.merge(clearances(schema, existing, desired)))
-      record(job, page, source_hash, desired)
+      props = split_for(job, schema)
+      page = update_properties(job, existing, props.all.merge(clearances(schema, existing, props.all, job.preserve)))
+      record(job, page, source_hash, props, existing)
       Outcome.new(action: :properties, page: page, entry: job.map&.entry(job.source), detail: nil)
     end
 
@@ -180,17 +266,19 @@ module NotionPublish
     def write(job, existing, source_hash)
       body = prepare_body(job)
       schema = schema_for(job.target)
-      desired = build_properties(schema, job.properties, job.title, job.title_given, job.warnings)
+      props = split_for(job, schema)
+      desired = props.all
 
       page = if existing
                replace_body(existing, body.markdown)
-               update_properties(job, existing, desired.merge(clearances(schema, existing, desired)))
+               update_properties(job, existing, desired.merge(clearances(schema, existing, desired, job.preserve)))
              else
+               note_lost_flags(job)
                create(job, body.markdown, desired)
              end
 
       place_images(page["id"], body.media, body.uploads, job.warnings) unless body.uploads.empty?
-      record(job, page, source_hash, desired)
+      record(job, page, source_hash, props, existing)
       Outcome.new(action: existing ? :updated : :created, page: page, entry: job.map&.entry(job.source), detail: nil)
     end
 
@@ -210,10 +298,21 @@ module NotionPublish
       Body.new(markdown: media.body_with_sentinels, media: media, uploads: upload_all(media))
     end
 
+    # A republished page that had to be recreated starts without the
+    # properties an earlier run set from flags, and republish cannot restore
+    # them because their values were never recorded.
+    def note_lost_flags(job)
+      return if job.preserve.empty?
+
+      job.warnings << "The new page does not have #{job.preserve.join(', ')}, which were set with flags. " \
+                      "Publish #{job.document.path} on its own with those flags to restore them."
+    end
+
     # Declarative, over the properties this tool set last time. A property it
-    # never managed belongs to somebody else and is left alone.
-    def clearances(schema, existing, desired)
-      (existing.properties - desired.keys).each_with_object({}) do |name, cleared|
+    # never managed belongs to somebody else and is left alone, and so is one
+    # being preserved.
+    def clearances(schema, existing, desired, preserve)
+      (existing.properties - desired.keys - preserve).each_with_object({}) do |name, cleared|
         key, payload = schema.build(name, [""])
         cleared[key] = payload
       rescue Error
@@ -252,20 +351,37 @@ module NotionPublish
       MSG
     end
 
-    def record(job, page, source_hash, desired)
+    def record(job, page, source_hash, props, existing)
       return unless job.map
 
       job.map.workspace_id = @client.me.dig("bot", "workspace_id") || @client.me["id"]
-      job.map.record(job.source, PageMap::Entry.new(
-                                   id: page["id"], url: page["url"],
-                                   parent: { "type" => job.target.page? ? "page_id" : "data_source_id",
-                                             "id" => job.target.id, "name" => job.target.title },
-                                   properties: desired.keys.sort,
-                                   source_sha256: source_hash,
-                                   properties_sha256: digest(desired),
-                                   notion_sha256: Digest::SHA256.hexdigest(read_markdown(page["id"])),
-                                   published_at: Time.now.utc.iso8601
-                                 ))
+      job.map.record(job.source, entry_for(job, page, source_hash, props, existing))
+    end
+
+    def entry_for(job, page, source_hash, props, existing)
+      flag_names, flag_digest = recorded_flags(job, props, existing)
+      PageMap::Entry.new(
+        id: page["id"], url: page["url"],
+        parent: { "type" => job.target.page? ? "page_id" : "data_source_id",
+                  "id" => job.target.id, "name" => job.target.title },
+        properties: (props.document.keys + flag_names).uniq.sort,
+        flag_properties: flag_names,
+        title_override: job.title_given ? job.title.to_s : nil,
+        keep_h1: job.keep_h1 || nil,
+        source_sha256: source_hash,
+        properties_sha256: digest(props.document),
+        flag_properties_sha256: flag_digest,
+        notion_sha256: Digest::SHA256.hexdigest(read_markdown(page["id"])),
+        published_at: Time.now.utc.iso8601
+      )
+    end
+
+    # A republish of an existing page carries the flag-set properties over
+    # untouched. Anything else records what this run's flags set.
+    def recorded_flags(job, props, existing)
+      return [existing.flag_properties || [], existing.flag_properties_sha256] if job.republish && existing
+
+      [props.flags.keys.sort, flags_digest(props)]
     end
 
     def prepare(job)

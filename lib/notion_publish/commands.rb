@@ -5,6 +5,7 @@ require_relative "commands/adopt"
 require_relative "commands/properties"
 require_relative "commands/publish"
 require_relative "commands/relink"
+require_relative "commands/republish"
 require_relative "commands/status"
 require_relative "commands/whoami"
 

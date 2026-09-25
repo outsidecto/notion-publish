@@ -21,7 +21,7 @@ module NotionPublish
     # The shell convention for a process stopped by SIGINT.
     INTERRUPTED = 130
 
-    SUBCOMMANDS = %w[adopt properties relink status].freeze
+    SUBCOMMANDS = %w[adopt properties relink republish status].freeze
 
     # Everything a command needs from the invocation. The client is built on
     # first use, so a usage error never demands a token.
@@ -84,6 +84,7 @@ module NotionPublish
       when "properties" then Commands::Properties.new(@context).call
       when "status" then Commands::Status.new(@context).call(args.first || Dir.pwd)
       when "relink" then Commands::Relink.new(@context).call(args.first || Dir.pwd)
+      when "republish" then Commands::Republish.new(@context).call(args.first || Dir.pwd)
       when "adopt"
         return usage("Give one Markdown file to adopt.") unless args.length == 1
 
@@ -134,6 +135,7 @@ module NotionPublish
       @parser ||= OptionParser.new do |o|
         o.banner = <<~BANNER.strip
           Usage: notion-publish FILE [options]
+                 notion-publish republish [DIR]        update every page notion-pages.yml tracks
                  notion-publish properties [options]   show the destination's schema
                  notion-publish relink [DIR]           fix links to documents published later
                  notion-publish adopt FILE [options]   record a page this file already corresponds to
