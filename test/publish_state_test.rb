@@ -230,6 +230,7 @@ class PublishStateTest < Minitest::Test
 
       assert_equal :created, outcome.action
       assert_includes warnings.join, "is in Notion's trash"
+      assert_equal PAGE, NotionPublish::PageMap.new(map.path).entry(path)&.id, "the new page is recorded"
       assert_requested @created
       assert_not_requested @replaced
     end

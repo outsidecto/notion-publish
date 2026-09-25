@@ -154,8 +154,12 @@ module NotionPublish
 
     def url_for(absolute_path) = entry(absolute_path)&.url
 
+    # Recording a key that was forgotten earlier in this run takes it off the
+    # forgotten list, or the save would delete the entry it is writing.
     def record(absolute_path, entry)
-      pages[key_for(absolute_path)] = entry.to_h
+      key = key_for(absolute_path)
+      @forgotten.delete(key)
+      pages[key] = entry.to_h
       save
     end
 

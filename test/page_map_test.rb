@@ -211,6 +211,20 @@ class PageMapTest < Minitest::Test
     end
   end
 
+  # A page that disappeared is forgotten, then republished under the same key
+  # in the same run. The new entry has to survive the save.
+  def test_recording_a_forgotten_key_keeps_the_new_entry
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "a.md")
+      map = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+      map.record(path, NotionPublish::PageMap::Entry.new(id: "old", url: "u-old"))
+      map.forget(path)
+      map.record(path, NotionPublish::PageMap::Entry.new(id: "new", url: "u-new"))
+
+      assert_equal "new", NotionPublish::PageMap.new(map.path).entry(path)&.id
+    end
+  end
+
   private
 
   def with_map
