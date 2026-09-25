@@ -6,12 +6,16 @@ require_relative "../property_set"
 require_relative "../reference"
 require_relative "../resolver"
 require_relative "../settings"
+require_relative "../target"
 
 module NotionPublish
   module Commands
     # Shared plumbing: the invocation's options and streams, and the lookups
     # that more than one command needs.
     class Command
+      PARENT_TYPES = %w[page_id database_id data_source_id].freeze
+      MAX_DEPTH = 10
+
       def initialize(context)
         @context = context
       end
@@ -42,6 +46,32 @@ module NotionPublish
         return resolver.resolve_database_name(name) if name
 
         raise Error, no_destination_message
+      end
+
+      # The recorded parent is enough: the page is updated in place, and the
+      # parent only supplies the schema. An adopted entry records none, so ask
+      # Notion where the page lives.
+      def target_for(entry)
+        parent = entry.parent
+        return resolve_parent_of(entry) unless parent
+
+        Target.new(kind: parent["type"] == "page_id" ? :page : :data_source, id: parent["id"],
+                   title: parent["name"], database_id: nil, inline: nil)
+      end
+
+      # A page's parent can be a block inside another page, such as a toggle
+      # heading the page was moved under. Walk up until a page, database, or
+      # data source appears; that is what supplies the schema.
+      def resolve_parent_of(entry)
+        parent = client.get("/v1/pages/#{entry.id}")["parent"] || {}
+        MAX_DEPTH.times do
+          type = parent["type"]
+          return Resolver.new(client).resolve_reference(parent[type]) if PARENT_TYPES.include?(type)
+          break unless type == "block_id"
+
+          parent = client.get("/v1/blocks/#{parent['block_id']}")["parent"] || {}
+        end
+        raise Error, "Cannot tell which page or database #{entry.url} sits under."
       end
 
       def property_set(document)

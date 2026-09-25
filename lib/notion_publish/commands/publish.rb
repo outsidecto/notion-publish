@@ -29,8 +29,8 @@ module NotionPublish
       def call(path)
         document = Document.load(path)
         settings = settings_for(path)
-        target = resolve_destination(document, settings)
         map = page_map_for(path)
+        target = destination(document, settings, map&.entry(File.expand_path(path)))
         icon = options[:icon] || document.icon || settings.icon
         cover = options[:cover] || document.cover || settings.cover
         Decoration.check!(icon, :icon) if icon
@@ -47,6 +47,16 @@ module NotionPublish
       private
 
       def publisher = @publisher ||= Publisher.new(client)
+
+      # A file the map already tracks is updated where its page is, so it needs
+      # no destination. One that is given anyway is still used.
+      def destination(document, settings, entry)
+        named = options[:parent] || options[:database] || document.parent || document.database ||
+                settings.parent || settings.database
+        return target_for(entry) if entry && !named
+
+        resolve_destination(document, settings)
+      end
 
       def publish_flags
         {

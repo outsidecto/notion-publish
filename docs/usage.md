@@ -92,7 +92,9 @@ shared with the connection. `notion-publish` says so rather than guessing which 
 ## Choosing a destination
 
 Every Notion page needs a parent. An internal connection cannot create pages at the top level of a
-workspace, so there is no default. The destination comes from the first of these that is set:
+workspace, so there is no default for a new page. A file that `notion-pages.yml` already tracks
+needs no destination: its page is updated wherever it is. Otherwise the destination comes from the
+first of these that is set:
 
 1. `--parent` or `--database` on the command line
 2. `notion_parent:` or `notion_database:` in the file's front matter

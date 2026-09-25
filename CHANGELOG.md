@@ -28,6 +28,8 @@ All notable changes to this project are recorded here. The format follows
 
 ### Changed
 
+- Publishing a file that `notion-pages.yml` already tracks no longer needs `--parent` or
+  `--database`. Its page is updated wherever it is.
 - Publishing a tracked file now checks its page for edits made in Notion even when the Markdown
   has not changed, and reports them with exit code 3 instead of `Unchanged`. This costs one more
   request per unchanged file.

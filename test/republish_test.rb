@@ -168,6 +168,21 @@ class RepublishTest < Minitest::Test
     end
   end
 
+  # Publishing one tracked file by name needs no destination: the entry
+  # already says where its page is.
+  def test_a_tracked_file_can_be_published_by_name_without_a_destination
+    with_published do |_dir, path|
+      stub_request(:get, "#{API}/v1/pages/#{PAGE}/markdown")
+        .to_return(status: 200, body: JSON.generate("markdown" => "Someone added a sentence."))
+
+      code, out, err = run_cli([path, "--force"])
+
+      assert_equal NotionPublish::CLI::OK, code, err
+      assert_includes out, "Updated #{path}"
+      assert_requested @replaced
+    end
+  end
+
   def test_a_destination_is_ignored_with_a_warning
     with_published do |dir|
       code, _, err = run_cli(["republish", dir, "--parent", "Elsewhere", "--title", "X"])
