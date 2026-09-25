@@ -23,7 +23,10 @@ module NotionPublish
         "select" => ->(value) { value["name"].inspect },
         "status" => ->(value) { value["name"].inspect },
         "people" => ->(value) { value.map { |v| v["id"] }.inspect },
-        "relation" => ->(value) { value.map { |v| v["id"] }.inspect }
+        "relation" => ->(value) { value.map { |v| v["id"] }.inspect },
+        # The form --property takes, rather than a Hash#inspect, whose format
+        # differs between Ruby versions.
+        "date" => ->(value) { value && [value["start"], value["end"]].compact.join("..") }
       }.freeze
 
       def call(path)

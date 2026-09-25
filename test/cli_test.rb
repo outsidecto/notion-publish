@@ -150,7 +150,7 @@ class CLITest < Minitest::Test
 
       assert_equal NotionPublish::CLI::OK, code
       assert_includes out, %(Function: ["Legal"])
-      assert_includes out, %(Due Date: {"start" => "2026-09-15"})
+      assert_includes out, "Due Date: 2026-09-15\n"
     end
   end
 
