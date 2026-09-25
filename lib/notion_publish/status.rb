@@ -5,6 +5,7 @@ require "digest"
 require_relative "notion_digest"
 require_relative "errors"
 require_relative "page_map"
+require_relative "pool"
 
 module NotionPublish
   # What would happen if you published everything.
@@ -43,13 +44,14 @@ module NotionPublish
       @client = client
     end
 
-    # +on_row+ is called with each tracked key before it is checked, so a
-    # caller can show progress.
-    def rows(dir: nil, check_notion: true, on_row: nil)
-      tracked = @map.pages.map do |key, raw|
-        on_row&.call(key)
-        tracked_row(key, PageMap::Entry.from(raw), check_notion)
-      end
+    # Pages are checked a few at a time. +started+ is called with each key as
+    # it is picked up and +finished+ with the count done so far, both on the
+    # calling thread, so a caller can show progress.
+    def rows(dir: nil, check_notion: true, started: nil, finished: nil)
+      @client&.me if check_notion
+      tracked = Pool.run(@map.pages.to_a,
+                         work: ->((key, raw)) { tracked_row(key, PageMap::Entry.from(raw), check_notion) },
+                         started: started && ->((key, _)) { started.call(key) }, finished: finished)
       tracked.sort_by { |r| [ACTIONABLE.index(r.state) || 99, r.source] } + untracked(dir)
     end
 

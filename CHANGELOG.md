@@ -8,8 +8,10 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- `republish`, `status`, and `relink` check three pages at a time, and still print results in file
+  order.
 - A progress line on stderr for `republish`, `status`, and `relink` when stderr is a terminal,
-  cleared when the run ends. `--no-progress` turns it off.
+  counting finished files and cleared when the run ends. `--no-progress` turns it off.
 - `republish` and `status` report only files where something happened. `-v` lists every file.
 - `-vv` logs each API request to stderr, with status, timing, and retries, and names the workspace
   the token belongs to, even for commands that would not otherwise ask. `-vvv` adds shortened

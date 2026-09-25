@@ -27,7 +27,9 @@ module NotionPublish
         check = options[:local] != true
         progress.start("Checking", map.pages.length)
         rows = NotionPublish::Status.new(map, client: check ? client : nil)
-                                    .rows(dir: dir, check_notion: check, on_row: ->(key) { progress.step(key) })
+                                    .rows(dir: dir, check_notion: check,
+                                          started: ->(key) { progress.started(key) },
+                                          finished: ->(done) { progress.finished(done) })
         progress.finish
         options[:json] ? print_json(rows) : print_text(map, rows, check)
         rows.any?(&:actionable?) ? CLI::BLOCKED : CLI::OK

@@ -575,9 +575,12 @@ and names the flag that answers it.
 line. Changes, blocked and skipped files, failures, and warnings are always printed. A single-file
 publish always reports its file, including `Unchanged`.
 
-In a terminal, `republish`, `status`, and `relink` also show one progress line on stderr, such as
-`Checking 12/38  policies/access-control.md`. It is rewritten in place as each file starts and
-cleared when the run ends. It is shown only when stderr is a terminal, so CI logs and pipes never
+`republish`, `status`, and `relink` check three pages at a time, which is about as fast as Notion's
+rate limit allows. Results are still printed in file order.
+
+In a terminal, these commands also show one progress line on stderr, such as `Checking 12/38
+policies/access-control.md`. The count is of files finished, and the name is a file still being
+checked. The line is rewritten in place and cleared when the run ends. It is shown only when stderr is a terminal, so CI logs and pipes never
 see it. It is also off with `-vv`, `--json`, and `--no-progress`.
 
 Each `-v` adds a level of detail:

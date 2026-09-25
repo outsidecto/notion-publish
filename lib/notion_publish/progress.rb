@@ -4,8 +4,9 @@ require "delegate"
 require "io/console"
 
 module NotionPublish
-  # A single progress line on a terminal, such as "Checking 12/38  a.md",
-  # rewritten in place and cleared when the run ends.
+  # A single progress line on a terminal, such as "Checking 12/38  a.md":
+  # how many items are finished, and one that is in progress. It is rewritten
+  # in place and cleared when the run ends.
   #
   # It exists only when stderr is a terminal, following git, curl, and rsync,
   # so CI logs and pipes never see it. Output written through #wrap clears the
@@ -40,16 +41,22 @@ module NotionPublish
     def start(verb, total)
       @verb = verb
       @total = total
-      @count = 0
+      @done = 0
+      @label = ""
     end
 
-    # Shows the next item. Call before working on it.
-    def step(label)
-      return unless enabled?
+    # Names an item being worked on. With several in flight, the line shows
+    # the one picked up most recently.
+    def started(label)
+      @label = label
+      redraw
+    end
 
-      @count += 1
-      @line = fit("#{@verb} #{@count}/#{@total}  #{label}")
-      draw
+    # Counts finished items, so the number only rises and reaches the total
+    # exactly when the work is done.
+    def finished(done)
+      @done = done
+      redraw
     end
 
     # Clears the line for good.
@@ -70,6 +77,13 @@ module NotionPublish
     end
 
     private
+
+    def redraw
+      return unless enabled?
+
+      @line = fit("#{@verb} #{@done}/#{@total}  #{@label}")
+      draw
+    end
 
     def draw
       @io.write("#{CLEAR}#{@line}")

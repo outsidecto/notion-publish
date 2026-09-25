@@ -4,6 +4,7 @@ require_relative "command"
 require_relative "reporting"
 require_relative "../decoration"
 require_relative "../document"
+require_relative "../pool"
 require_relative "../publisher"
 require_relative "../target"
 
@@ -42,13 +43,8 @@ module NotionPublish
           return CLI::FAILURE
         end
 
-        entries = entries_under(map, File.expand_path(dir))
-        progress.start("Checking", entries.length)
-        results = entries.map do |key, raw|
-          progress.step(key)
-          republish(map, key, raw)
-        end
-        progress.finish
+        entries = entries_under(map, File.expand_path(dir)).to_a
+        results = run_all(map, entries).map(&:action)
         stdout.puts summary(results) unless options[:json]
         exit_code(results)
       end
@@ -78,24 +74,46 @@ module NotionPublish
         end
       end
 
-      # Returns the action, or :failed. One document failing does not stop
-      # the rest, the same as a shell loop without `|| break`.
+      # What republishing one file came to. Built on a worker thread and
+      # printed on the calling one, in file order.
+      Result = Data.define(:key, :action, :outcome, :target, :warnings, :message)
+
+      # Several files at a time. The client, the publisher, and the map are
+      # set up here first, so no worker races to create them.
+      def run_all(map, entries)
+        client
+        publisher
+        progress.start("Checking", entries.length)
+        Pool.run(entries, work: ->((key, raw)) { republish(map, key, raw) },
+                          started: ->((key, _)) { progress.started(key) },
+                          finished: ->(done) { progress.finished(done) }) do |_, result|
+          print_result(result)
+        end
+      ensure
+        progress.finish
+      end
+
+      # One document failing does not stop the rest, the same as a shell loop
+      # without `|| break`.
       def republish(map, key, raw)
         entry = PageMap::Entry.from(raw)
         path = File.expand_path(key, map.dir)
-        unless File.file?(path)
-          stderr.puts "Skipped #{key}: no source file. Its Notion page is still live."
-          return :orphaned
-        end
+        return Result.new(key, :orphaned, nil, nil, [], nil) unless File.file?(path)
 
         target = target_for(entry)
         warnings = []
         outcome = publish(path, entry, target, map, warnings)
-        report(key, outcome, target, warnings)
-        outcome.action
+        Result.new(key, outcome.action, outcome, target, warnings, nil)
       rescue Error => e
-        stderr.puts "Failed #{key}: #{e.message}"
-        :failed
+        Result.new(key, :failed, nil, nil, [], e.message)
+      end
+
+      def print_result(result)
+        case result.action
+        when :orphaned then stderr.puts "Skipped #{result.key}: no source file. Its Notion page is still live."
+        when :failed then stderr.puts "Failed #{result.key}: #{result.message}"
+        else report(result.key, result.outcome, result.target, result.warnings)
+        end
       end
 
       def publish(path, entry, target, map, warnings)

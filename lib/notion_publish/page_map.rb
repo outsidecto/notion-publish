@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "monitor"
 require "pathname"
 require "yaml"
 
@@ -129,6 +130,9 @@ module NotionPublish
       @created = !File.file?(path)
       # Keys removed in memory, so the merge with disk does not put them back.
       @forgotten = []
+      # Several pages are checked and recorded at once; the file lock guards
+      # other processes, this guards the threads of this one.
+      @lock = Monitor.new
     end
 
     def dir = File.dirname(path)
@@ -138,7 +142,9 @@ module NotionPublish
     def workspace_id = @data["workspace_id"]
 
     def workspace_id=(value)
-      @data["workspace_id"] = value if value && @data["workspace_id"] != value
+      @lock.synchronize do
+        @data["workspace_id"] = value if value && @data["workspace_id"] != value
+      end
     end
 
     def key_for(absolute_path)
@@ -148,8 +154,10 @@ module NotionPublish
     end
 
     def entry(absolute_path)
-      raw = pages[key_for(absolute_path)]
-      raw && Entry.from(raw)
+      @lock.synchronize do
+        raw = pages[key_for(absolute_path)]
+        raw && Entry.from(raw)
+      end
     end
 
     def url_for(absolute_path) = entry(absolute_path)&.url
@@ -157,17 +165,21 @@ module NotionPublish
     # Recording a key that was forgotten earlier in this run takes it off the
     # forgotten list, or the save would delete the entry it is writing.
     def record(absolute_path, entry)
-      key = key_for(absolute_path)
-      @forgotten.delete(key)
-      pages[key] = entry.to_h
-      save
+      @lock.synchronize do
+        key = key_for(absolute_path)
+        @forgotten.delete(key)
+        pages[key] = entry.to_h
+        save
+      end
     end
 
     def forget(absolute_path)
-      key = key_for(absolute_path)
-      pages.delete(key)
-      @forgotten << key
-      save
+      @lock.synchronize do
+        key = key_for(absolute_path)
+        pages.delete(key)
+        @forgotten << key
+        save
+      end
     end
 
     # Entries whose source file no longer exists. Reported, never acted on: the
@@ -185,19 +197,21 @@ module NotionPublish
     # Read-modify-write under an exclusive lock, so parallel invocations across a
     # corpus cannot drop each other's entries.
     def save
-      raise Error, unwritable_message unless writable?
+      @lock.synchronize do
+        raise Error, unwritable_message unless writable?
 
-      # Lock the map itself rather than a sidecar: a stray .lock file next to
-      # committed state is litter, and one more thing to gitignore.
-      File.open(path, File::RDWR | File::CREAT, 0o644) do |file|
-        file.flock(File::LOCK_EX)
-        merged = merge_with_disk
-        file.rewind
-        file.truncate(0)
-        file.write(HEADER + YAML.dump(sorted(merged)))
-        @data = merged
+        # Lock the map itself rather than a sidecar: a stray .lock file next to
+        # committed state is litter, and one more thing to gitignore.
+        File.open(path, File::RDWR | File::CREAT, 0o644) do |file|
+          file.flock(File::LOCK_EX)
+          merged = merge_with_disk
+          file.rewind
+          file.truncate(0)
+          file.write(HEADER + YAML.dump(sorted(merged)))
+          @data = merged
+        end
+        @created = false
       end
-      @created = false
     end
 
     private

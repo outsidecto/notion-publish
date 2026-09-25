@@ -10,21 +10,23 @@ class ProgressTest < Minitest::Test
     end
   end
 
-  def test_each_step_rewrites_one_line
+  # The count is of finished items; the name is one still in progress.
+  def test_the_count_follows_finished_items_and_the_name_follows_started_ones
     io = terminal
     progress = NotionPublish::Progress.new(io, enabled: true)
     progress.start("Checking", 2)
-    progress.step("a.md")
-    progress.step("b.md")
+    progress.started("a.md")
+    progress.started("b.md")
+    progress.finished(1)
 
-    assert_equal "\r\e[KChecking 1/2  a.md\r\e[KChecking 2/2  b.md", io.string
+    assert_equal "\r\e[KChecking 0/2  a.md\r\e[KChecking 0/2  b.md\r\e[KChecking 1/2  b.md", io.string
   end
 
   def test_finish_leaves_the_line_empty
     io = terminal
     progress = NotionPublish::Progress.new(io, enabled: true)
     progress.start("Checking", 1)
-    progress.step("a.md")
+    progress.started("a.md")
     progress.finish
 
     assert io.string.end_with?("\r\e[K")
@@ -35,20 +37,20 @@ class ProgressTest < Minitest::Test
     progress = NotionPublish::Progress.new(io, enabled: true)
     out = progress.wrap(io)
     progress.start("Checking", 1)
-    progress.step("a.md")
+    progress.started("a.md")
     io.truncate(0)
     io.rewind
 
     out.puts "Updated a.md"
 
-    assert_equal "\r\e[KUpdated a.md\n\r\e[KChecking 1/1  a.md", io.string
+    assert_equal "\r\e[KUpdated a.md\n\r\e[KChecking 0/1  a.md", io.string
   end
 
   def test_a_long_name_is_cut_to_the_terminal_width
     io = terminal(width: 30)
     progress = NotionPublish::Progress.new(io, enabled: true)
     progress.start("Checking", 1)
-    progress.step("a-very-long-file-name-that-would-wrap.md")
+    progress.started("a-very-long-file-name-that-would-wrap.md")
 
     line = io.string.delete_prefix("\r\e[K")
 
@@ -60,7 +62,7 @@ class ProgressTest < Minitest::Test
     io = StringIO.new
     progress = NotionPublish::Progress.new(io, enabled: false)
     progress.start("Checking", 1)
-    progress.step("a.md")
+    progress.started("a.md")
     progress.finish
 
     assert_equal "", io.string

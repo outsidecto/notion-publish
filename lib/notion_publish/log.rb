@@ -16,6 +16,8 @@ module NotionPublish
     def initialize(io, level)
       @io = io
       @level = level
+      # Requests run on several threads; keep each line whole.
+      @lock = Mutex.new
     end
 
     def request(method, uri, status, seconds)
@@ -37,7 +39,7 @@ module NotionPublish
 
     private
 
-    def line(message) = @io.puts("notion-publish: #{message}")
+    def line(message) = @lock.synchronize { @io.puts("notion-publish: #{message}") }
 
     def shorten(text)
       flat = text.to_s.gsub(/\s+/, " ")

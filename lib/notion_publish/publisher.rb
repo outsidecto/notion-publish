@@ -56,6 +56,8 @@ module NotionPublish
 
     def initialize(client)
       @client = client
+      @schemas = {}
+      @lock = Mutex.new
     end
 
     def publish(document, target:, map: nil, properties: PropertySet.new, title: nil,
@@ -93,7 +95,7 @@ module NotionPublish
     # Cached per destination, since a republish reads the same schema for
     # every document in it.
     def schema_for(target)
-      (@schemas ||= {})[target.id] ||= Schema.for(@client, target)
+      @lock.synchronize { @schemas[target.id] ||= Schema.for(@client, target) }
     end
 
     # Every property payload this run would set.

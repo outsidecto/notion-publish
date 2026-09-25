@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "monitor"
 require "net/http"
 require "uri"
 
@@ -46,7 +47,10 @@ module NotionPublish
       @api_version = api_version
       @sleeper = sleeper
       @log = log
-      @http = nil
+      # Net::HTTP is not safe to share between threads, so each thread that
+      # makes requests gets its own kept-alive connection.
+      @connections = {}
+      @lock = Monitor.new
     end
 
     def delete(path) = request(Net::HTTP::Delete, path)
@@ -96,9 +100,7 @@ module NotionPublish
     # Identity of the token itself. Cached: the CLI asks for it when building
     # error messages, which can happen more than once per run.
     def me
-      @me ||= get("/v1/users/me").tap do |found|
-        @log&.note("authenticated as #{found['name'].inspect} in #{found.dig('bot', 'workspace_name').inspect}")
-      end
+      @lock.synchronize { @me ||= fetch_me }
     end
 
     # Human name of the connection or person this token authenticates as, for
@@ -119,6 +121,12 @@ module NotionPublish
     end
 
     private
+
+    def fetch_me
+      get("/v1/users/me").tap do |found|
+        @log&.note("authenticated as #{found['name'].inspect} in #{found.dig('bot', 'workspace_name').inspect}")
+      end
+    end
 
     def multipart(boundary, path, content_type)
       # Force binary: joining image bytes with UTF-8 strings raises otherwise.
@@ -199,17 +207,20 @@ module NotionPublish
       { "code" => "invalid_response", "message" => body[0, 200] }
     end
 
-    # One connection, kept open for the run: a publish makes a dozen calls.
+    # One connection per thread, kept open for the run: a publish makes a
+    # dozen calls.
     def http
-      @http ||= begin
-        uri = URI(API_ORIGIN)
-        h = Net::HTTP.new(uri.host, uri.port)
-        h.use_ssl = true
-        h.open_timeout = 10
-        h.read_timeout = 60
-        h.start
-        h
-      end
+      @lock.synchronize { @connections[Thread.current] ||= connect }
+    end
+
+    def connect
+      uri = URI(API_ORIGIN)
+      connection = Net::HTTP.new(uri.host, uri.port)
+      connection.use_ssl = true
+      connection.open_timeout = 10
+      connection.read_timeout = 60
+      connection.start
+      connection
     end
   end
 end

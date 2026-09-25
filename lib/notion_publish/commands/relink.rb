@@ -5,6 +5,7 @@ require "digest"
 require_relative "../notion_digest"
 require_relative "command"
 require_relative "../links"
+require_relative "../pool"
 
 module NotionPublish
   module Commands
@@ -19,12 +20,7 @@ module NotionPublish
           return CLI::FAILURE
         end
 
-        progress.start("Checking", map.pages.length)
-        fixed = map.pages.sum do |key, raw|
-          progress.step(key)
-          relink_page(map, key, PageMap::Entry.from(raw))
-        end
-        progress.finish
+        fixed = relink_all(map).sum
         report_orphans(map)
         stdout.puts fixed.zero? ? "No links needed fixing." : "Fixed #{fixed} #{plural(fixed, 'link')}."
         CLI::OK
@@ -32,15 +28,30 @@ module NotionPublish
 
       private
 
-      def relink_page(map, key, entry)
+      # Several pages at a time. Workers read the published URLs from a copy
+      # taken first, since the map itself changes as pages are rehashed.
+      def relink_all(map)
+        urls = map.pages.transform_values { |raw| raw["url"] }
+        client
+        progress.start("Checking", map.pages.length)
+        Pool.run(map.pages.to_a, work: ->((key, raw)) { relink_page(map, urls, key, PageMap::Entry.from(raw)) },
+                                 started: ->((key, _)) { progress.started(key) },
+                                 finished: ->(done) { progress.finished(done) }) do |(key, _), count|
+          stdout.puts "#{File.basename(key)}: fixed #{count} #{plural(count, 'link')}" if count.positive?
+        end
+      ensure
+        progress.finish
+      end
+
+      # Returns the number of links fixed.
+      def relink_page(map, urls, key, entry)
         before = read_markdown(entry.id)
-        updates = pending_updates(map, before)
+        updates = pending_updates(urls, before)
         return 0 if updates.empty?
 
         client.patch("/v1/pages/#{entry.id}/markdown",
                      { "type" => "update_content", "update_content" => { "content_updates" => updates } })
         rehash(map, key, entry, before)
-        stdout.puts "#{File.basename(key)}: fixed #{updates.length} #{plural(updates.length, 'link')}"
         updates.length
       end
 
@@ -57,12 +68,12 @@ module NotionPublish
 
       def read_markdown(page_id) = client.get("/v1/pages/#{page_id}/markdown")["markdown"].to_s
 
-      def pending_updates(map, markdown)
-        map.pages.filter_map do |key, raw|
+      def pending_updates(urls, markdown)
+        urls.filter_map do |key, url|
           mangled = Links.mangled(File.basename(key))
           next unless markdown.include?("](#{mangled})")
 
-          { "old_str" => "](#{mangled})", "new_str" => "](#{raw['url']})", "replace_all_matches" => true }
+          { "old_str" => "](#{mangled})", "new_str" => "](#{url})", "replace_all_matches" => true }
         end
       end
 
