@@ -9,7 +9,7 @@ All notable changes to this project are recorded here. The format follows
 ### Added
 
 - `republish`, `status`, and `relink` check three pages at a time, and still print results in file
-  order.
+  order. `-j`/`--jobs N` changes the number; `--jobs 1` runs one at a time.
 - A progress line on stderr for `republish`, `status`, and `relink` when stderr is a terminal,
   counting finished files and cleared when the run ends. `--no-progress` turns it off.
 - `republish` and `status` report only files where something happened. `-v` lists every file.

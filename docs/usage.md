@@ -55,6 +55,7 @@ Options:
 | `--untracked`                 | `status` only: list files that were never published             |
 | `--page URL_OR_ID`            | `adopt` only: the page this file corresponds to                 |
 | `-y`, `--yes`                 | `adopt` only: accept a title match without asking               |
+| `-j`, `--jobs N`              | Pages to check at once (default 3; 1 runs one at a time)        |
 | `--no-progress`               | Do not show a progress line in a terminal                       |
 | `-v`, `--verbose`             | List every file; `-vv` logs API requests; `-vvv` adds bodies    |
 | `--token TOKEN`               | API token, instead of the environment                           |
@@ -576,7 +577,13 @@ line. Changes, blocked and skipped files, failures, and warnings are always prin
 publish always reports its file, including `Unchanged`.
 
 `republish`, `status`, and `relink` check three pages at a time, which is about as fast as Notion's
-rate limit allows. Results are still printed in file order.
+rate limit allows. Results are still printed in file order. `--jobs` changes the number:
+
+- `--jobs 1` checks one page at a time. Use it with `-vv` when you want a request log that reads in
+  order, or to rule concurrency out when something looks wrong.
+- `--jobs 2` eases off when another integration or CI job uses the same connection, since Notion's
+  rate limit is per connection.
+- Values above 3 are allowed, up to 10, but mostly turn into rate-limit retries.
 
 In a terminal, these commands also show one progress line on stderr, such as:
 

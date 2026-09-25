@@ -84,7 +84,7 @@ module NotionPublish
         client
         publisher
         progress.start("Checking", entries.length)
-        Pool.run(entries, work: ->((key, raw)) { republish(map, key, raw) },
+        Pool.run(entries, size: jobs, work: ->((key, raw)) { republish(map, key, raw) },
                           started: ->((key, _)) { progress.started(key) },
                           finished: ->(done) { progress.finished(done) }) do |_, result|
           print_result(result)

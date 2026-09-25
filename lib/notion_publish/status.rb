@@ -47,11 +47,13 @@ module NotionPublish
     # Pages are checked a few at a time. +started+ is called with each key as
     # it is picked up and +finished+ with the count done so far, both on the
     # calling thread, so a caller can show progress.
-    def rows(dir: nil, check_notion: true, started: nil, finished: nil)
+    def rows(dir: nil, check_notion: true, started: nil, finished: nil, jobs: Pool::SIZE)
       @client&.me if check_notion
-      tracked = Pool.run(@map.pages.to_a,
-                         work: ->((key, raw)) { tracked_row(key, PageMap::Entry.from(raw), check_notion) },
-                         started: started && ->((key, _)) { started.call(key) }, finished: finished)
+      tracked = Pool.run(@map.pages.to_a, size: jobs,
+                                          work: lambda { |(key, raw)|
+                                            tracked_row(key, PageMap::Entry.from(raw), check_notion)
+                                          },
+                                          started: started && ->((key, _)) { started.call(key) }, finished: finished)
       tracked.sort_by { |r| [ACTIONABLE.index(r.state) || 99, r.source] } + untracked(dir)
     end
 

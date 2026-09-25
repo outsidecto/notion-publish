@@ -27,7 +27,7 @@ module NotionPublish
         check = options[:local] != true
         progress.start("Checking", map.pages.length)
         rows = NotionPublish::Status.new(map, client: check ? client : nil)
-                                    .rows(dir: dir, check_notion: check,
+                                    .rows(dir: dir, check_notion: check, jobs: jobs,
                                           started: ->(key) { progress.started(key) },
                                           finished: ->(done) { progress.finished(done) })
         progress.finish

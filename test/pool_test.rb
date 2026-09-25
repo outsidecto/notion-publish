@@ -28,6 +28,20 @@ class PoolTest < Minitest::Test
     assert_equal 3, peak
   end
 
+  # --jobs 1: strictly one at a time.
+  def test_a_size_of_one_runs_sequentially
+    in_flight = 0
+    peak = 0
+    lock = Mutex.new
+    NotionPublish::Pool.run((1..4).to_a, size: 1, work: lambda { |_|
+      lock.synchronize { peak = [peak, in_flight += 1].max }
+      sleep 0.01
+      lock.synchronize { in_flight -= 1 }
+    })
+
+    assert_equal 1, peak
+  end
+
   def test_finished_counts_up_to_the_total
     counts = []
     NotionPublish::Pool.run(%w[a b c], work: ->(x) { x }, finished: ->(done) { counts << done })

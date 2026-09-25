@@ -7,6 +7,7 @@ require_relative "commands"
 require_relative "errors"
 require_relative "log"
 require_relative "page_map"
+require_relative "pool"
 require_relative "version"
 
 module NotionPublish
@@ -23,6 +24,9 @@ module NotionPublish
     INTERRUPTED = 130
 
     SUBCOMMANDS = %w[adopt properties relink republish status].freeze
+    # More than Notion's rate limit allows mostly buys retries; past this it
+    # is a mistake.
+    MAX_JOBS = 10
 
     # Everything a command needs from the invocation. The client is built on
     # first use, so a usage error never demands a token.
@@ -65,6 +69,7 @@ module NotionPublish
       args = parser.parse(argv)
 
       return print_help if @options[:help]
+      return usage("--jobs must be between 1 and #{MAX_JOBS}.") unless (1..MAX_JOBS).cover?(@options.fetch(:jobs, 1))
       return print_version if @options[:version]
       return Commands::Whoami.new(@context).call if @options[:whoami]
 
@@ -193,6 +198,9 @@ module NotionPublish
         end
         o.on("--whoami", "Show what the token authenticates as") { @options[:whoami] = true }
         o.on("--no-progress", "Do not show a progress line in a terminal") { @options[:no_progress] = true }
+        o.on("-j", "--jobs N", Integer, "Pages to check at once (default #{Pool::SIZE}; 1 runs one at a time)") do |v|
+          @options[:jobs] = v
+        end
         o.on("-v", "--verbose", "List every file; -vv logs API requests; -vvv adds bodies") do
           @options[:verbose] = (@options[:verbose] || 0) + 1
         end

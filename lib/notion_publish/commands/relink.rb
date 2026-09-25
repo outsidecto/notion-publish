@@ -34,7 +34,9 @@ module NotionPublish
         urls = map.pages.transform_values { |raw| raw["url"] }
         client
         progress.start("Checking", map.pages.length)
-        Pool.run(map.pages.to_a, work: ->((key, raw)) { relink_page(map, urls, key, PageMap::Entry.from(raw)) },
+        Pool.run(map.pages.to_a, size: jobs, work: lambda { |(key, raw)|
+          relink_page(map, urls, key, PageMap::Entry.from(raw))
+        },
                                  started: ->((key, _)) { progress.started(key) },
                                  finished: ->(done) { progress.finished(done) }) do |(key, _), count|
           stdout.puts "#{File.basename(key)}: fixed #{count} #{plural(count, 'link')}" if count.positive?

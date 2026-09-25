@@ -324,6 +324,13 @@ class CLITest < Minitest::Test
     assert_includes out, "Usage: notion-publish"
   end
 
+  def test_jobs_outside_the_allowed_range_is_a_usage_error
+    code, _, err = run_cli(%w[status --jobs 0])
+
+    assert_equal NotionPublish::CLI::USAGE, code
+    assert_includes err, "--jobs must be between 1 and 10"
+  end
+
   def test_version_prints_the_version
     code, out, = run_cli(["--version"])
 

@@ -2,6 +2,7 @@
 
 require_relative "../errors"
 require_relative "../page_map"
+require_relative "../pool"
 require_relative "../progress"
 require_relative "../property_set"
 require_relative "../reference"
@@ -29,6 +30,7 @@ module NotionPublish
       def stdin = @context.stdin
       def client = @context.client
       def progress = @progress ||= Progress.new(@context.stderr, enabled: progress_wanted?)
+      def jobs = options[:jobs] || Pool::SIZE
 
       # Only on a terminal, and not when the request log is already showing
       # activity or --json output is being read by a program.
