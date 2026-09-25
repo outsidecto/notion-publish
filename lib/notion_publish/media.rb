@@ -62,7 +62,7 @@ module NotionPublish
           image = Image.new(index: index, alt: match[1], path: unescape(match[2]))
           @images << image
           index += 1
-          next "#{image.sentinel}\n"
+          next "#{line[/\A\s*/]}#{image.sentinel}\n"
         end
 
         # An image among other text cannot become a block. Note it so the caller

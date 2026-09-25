@@ -23,6 +23,9 @@ module NotionPublish
     TABLE = /\A {0,3}\|/
     HTML = /\A {0,3}</
     INDENTED_CODE = /\A {4,}\S/
+    # An image alone on its line. Joined into the line above, it would become
+    # an image inside a sentence, which Notion cannot show.
+    IMAGE_LINE = /\A\s*!\[[^\]]*\]\([^)]*\)\s*\z/
     QUOTE = /\A {0,3}>[ \t]?(.*)\z/
     LIST = /\A(\s*(?:[-*+]|\d+[.)])\s+)(.*)\z/
     HARD_BREAK = /(?: {2,}|\\)\z/
@@ -79,6 +82,10 @@ module NotionPublish
     # Returns [new_run, lines_to_emit].
     def classify(line, raw, run)
       case line
+      when IMAGE_LINE
+        # Set apart from the text above, keeping its indentation, so an image
+        # written under a list item stays inside that item.
+        [nil, flush(run) + (run ? ["\n", raw] : [raw])]
       when BLANK, THEMATIC, HEADING, TABLE, HTML
         [nil, flush(run) + [raw]]
       when QUOTE

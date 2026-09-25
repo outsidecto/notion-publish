@@ -20,6 +20,9 @@ All notable changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- An image on the line directly after a list item's text, or after a wrapped paragraph, was joined
+  into that text. It became an image inside a sentence, which Notion cannot show, so it was left out
+  of the page. It is now kept on its own line, under its list item, and placed there.
 - A page with an uploaded image read as "changed in Notion" on every check, because Notion
   returns uploaded files as signed S3 URLs with a new signature on each read. The signature is now
   removed before hashing. Pages without uploaded images hash as before.

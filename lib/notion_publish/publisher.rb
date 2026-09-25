@@ -418,7 +418,7 @@ module NotionPublish
     # Each local image was published as a sentinel paragraph. Find it, insert
     # the real image block after it, then delete the sentinel.
     def place_images(page_id, media, uploads, warnings)
-      by_text = @client.get_all("/v1/blocks/#{page_id}/children").to_h { |block| [plain_text(block), block["id"]] }
+      by_text = blocks_under(page_id).to_h { |block| [plain_text(block), block["id"]] }
 
       media.images.each do |image|
         block_id = by_text[image.sentinel]
@@ -432,6 +432,16 @@ module NotionPublish
                         "position" => { "type" => "after_block", "after_block" => { "id" => block_id } }
                       })
         @client.delete("/v1/blocks/#{block_id}")
+      end
+    end
+
+    # Every block on the page, including those nested in list items and
+    # toggles, since an image written under a list item is placed there.
+    # Child pages and databases are separate documents and are not entered.
+    def blocks_under(block_id)
+      @client.get_all("/v1/blocks/#{block_id}/children").flat_map do |block|
+        nested = block["has_children"] && !%w[child_page child_database].include?(block["type"])
+        nested ? [block, *blocks_under(block["id"])] : [block]
       end
     end
 

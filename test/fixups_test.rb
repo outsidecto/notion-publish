@@ -125,4 +125,18 @@ class FixupsTest < Minitest::Test
   def test_trailing_newline_is_not_required
     assert_equal "One two.\n", join("One\ntwo.")
   end
+
+  # Written directly under a list item's text. Joined, it would become an
+  # image inside a sentence, which Notion drops.
+  def test_an_image_under_a_list_item_is_kept_on_its_own_line
+    body = "1. The figure below shows the workflow:\n   ![Workflow](./workflow.jpg)\n2. Next step.\n"
+
+    assert_equal "1. The figure below shows the workflow:\n\n   ![Workflow](./workflow.jpg)\n2. Next step.\n",
+                 NotionPublish::Fixups.apply(body)
+  end
+
+  def test_an_image_after_a_wrapped_paragraph_is_not_joined_into_it
+    assert_equal "Some text that wraps.\n\n![A](a.png)\n",
+                 NotionPublish::Fixups.apply("Some text\nthat wraps.\n![A](a.png)\n")
+  end
 end

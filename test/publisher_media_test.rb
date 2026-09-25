@@ -117,6 +117,27 @@ class PublisherMediaTest < Minitest::Test
     assert_requested @delete
   end
 
+  # An image under a list item is published nested inside that item, so its
+  # sentinel is a child of the list block rather than of the page.
+  def test_a_sentinel_nested_in_a_list_item_is_found
+    stub_request(:get, %r{/v1/blocks/#{PAGE}/children}).to_return(status: 200, body: JSON.generate(
+      "results" => [{ "id" => "list-item", "type" => "numbered_list_item", "has_children" => true,
+                      "numbered_list_item" => { "rich_text" => [{ "plain_text" => "The figure:" }] } }]
+    ))
+    stub_request(:get, %r{/v1/blocks/list-item/children}).to_return(status: 200, body: JSON.generate(
+      "results" => [{ "id" => MARKER_BLOCK, "type" => "paragraph",
+                      "paragraph" => { "rich_text" => [{ "plain_text" => SENTINEL }] } }]
+    ))
+    warnings = []
+    publish("1. The figure:\n   ![a](diagram.png)\n", warnings: warnings)
+
+    assert_empty warnings
+    assert_requested(:patch, "#{StubbingHelpers::API}/v1/blocks/#{PAGE}/children") do |req|
+      JSON.parse(req.body).dig("position", "after_block", "id") == MARKER_BLOCK
+    end
+    assert_requested @delete
+  end
+
   # If Notion's parser swallowed the sentinel, say so rather than silently
   # publishing a document with a missing diagram.
   def test_a_missing_sentinel_is_reported

@@ -90,4 +90,10 @@ class MediaTest < Minitest::Test
   def test_percent_encoded_spaces_are_decoded
     assert_equal "my diagram.png", scan("![a](my%20diagram.png)\n").images.first.path
   end
+
+  def test_a_sentinel_keeps_the_images_indentation
+    media = NotionPublish::Media.scan("1. Item:\n\n   ![a](a.png)\n", base_dir: "/tmp")
+
+    assert_includes media.body_with_sentinels, "\n   NOTIONPUBLISHIMAGE0000\n"
+  end
 end
