@@ -41,11 +41,12 @@ module NotionPublish
       # belongs to. That is the first question when a page cannot be found and
       # more than one token is in use.
       def client
-        @client ||= Client.new(token: options[:token], log: log).tap { |c| c.me if options[:verbose] }
+        @client ||= Client.new(token: options[:token], log: log).tap { |c| c.me if log }
       end
 
       def log
-        Log.new(stderr, options[:verbose]) if options[:verbose]
+        # -v lists every file; request logging starts at -vv.
+        Log.new(stderr, options[:verbose] - 1) if options[:verbose].to_i >= 2
       end
     end
 
@@ -191,9 +192,8 @@ module NotionPublish
           @options[:token] = v
         end
         o.on("--whoami", "Show what the token authenticates as") { @options[:whoami] = true }
-        o.on("-q", "--quiet", "Only report files where something happened") { @options[:quiet] = true }
         o.on("--no-progress", "Do not show a progress line in a terminal") { @options[:no_progress] = true }
-        o.on("-v", "--verbose", "Log each API request to stderr; -vv adds shortened bodies") do
+        o.on("-v", "--verbose", "List every file; -vv logs API requests; -vvv adds bodies") do
           @options[:verbose] = (@options[:verbose] || 0) + 1
         end
         o.on("--version", "Show version") { @options[:version] = true }

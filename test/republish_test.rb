@@ -23,9 +23,9 @@ class RepublishTest < Minitest::Test
                .to_return(status: 200, body: JSON.generate("object" => "page", "id" => PAGE, "url" => "https://n/p/x"))
   end
 
-  def test_unchanged_documents_are_reported_and_nothing_is_written
+  def test_unchanged_documents_are_listed_with_v_and_nothing_is_written
     with_published do |dir|
-      code, out, = run_cli(["republish", dir])
+      code, out, = run_cli(["republish", dir, "-v"])
 
       assert_equal NotionPublish::CLI::OK, code
       assert_includes out, "Unchanged doc.md"
@@ -35,9 +35,9 @@ class RepublishTest < Minitest::Test
     end
   end
 
-  def test_quiet_leaves_out_unchanged_documents
+  def test_unchanged_documents_are_left_out_by_default
     with_published do |dir|
-      _, out, = run_cli(["republish", dir, "-q"])
+      _, out, = run_cli(["republish", dir])
 
       refute_includes out, "Unchanged"
       assert_includes out, "1 document: 1 unchanged"

@@ -55,9 +55,8 @@ Options:
 | `--untracked`                 | `status` only: list files that were never published             |
 | `--page URL_OR_ID`            | `adopt` only: the page this file corresponds to                 |
 | `-y`, `--yes`                 | `adopt` only: accept a title match without asking               |
-| `-q`, `--quiet`               | Only report files where something happened                      |
 | `--no-progress`               | Do not show a progress line in a terminal                       |
-| `-v`, `--verbose`             | Log each API request to stderr; `-vv` adds shortened bodies     |
+| `-v`, `--verbose`             | List every file; `-vv` logs API requests; `-vvv` adds bodies    |
 | `--token TOKEN`               | API token, instead of the environment                           |
 | `--version`, `-h`, `--help`   |                                                                 |
 
@@ -360,8 +359,9 @@ Once the files are published, use `republish` to keep them current.
     notion-publish republish            # every entry in the map
     notion-publish republish policies   # only entries for files under policies/
 
-Each file goes through the same checks as a single publish, and reports `Unchanged`, `Updated`,
-`Updated properties`, or a problem. A summary line follows:
+Each file goes through the same checks as a single publish. Files that were updated, recreated,
+skipped, blocked, or failed are listed, and a summary line follows. `-v` also lists the files that
+were unchanged.
 
     12 documents: 10 unchanged, 1 updated, 1 changed in Notion
 
@@ -487,10 +487,6 @@ anything:
       policies/incident-response.md
         https://app.notion.com/p/...
 
-    In sync (10)
-      policies/acceptable-use.md
-      ...
-
     Never published (1): pass --untracked to list them
 
     10 in sync, 1 changed locally, 1 changed in Notion, 1 never published
@@ -506,9 +502,10 @@ anything:
 | no source file            | The file was deleted or moved           | yes          |
 | never published           | A Markdown file with no entry           | no           |
 
-Documents are grouped by state, with anything that needs action first. Files that were never
-published are counted but not listed, since a repository often has many files that are not meant for
-Notion. `--untracked` lists them.
+Documents are grouped by state, with anything that needs action first. Documents in sync are
+counted in the summary and listed with `-v`. Files that were never published are counted but not
+listed, since a repository often has many files that are not meant for Notion. `--untracked` lists
+them.
 
 It exits 3 if anything needs action, which makes it usable as a CI check. Checking against Notion
 takes two requests per tracked page: one for the page, which says whether it is in the trash, and
@@ -572,34 +569,41 @@ Code 3 means a page was edited in Notion, `republish` skipped a file, or `status
 The tool never waits for input when there is no terminal. Where it would ask a question, it fails
 and names the flag that answers it.
 
-### Progress and quiet output
+### Output and progress
 
-In a terminal, `republish`, `status`, and `relink` show one progress line on stderr, such as
+`republish` and `status` report only the files where something happened, followed by a summary
+line. Changes, blocked and skipped files, failures, and warnings are always printed. A single-file
+publish always reports its file, including `Unchanged`.
+
+In a terminal, `republish`, `status`, and `relink` also show one progress line on stderr, such as
 `Checking 12/38  policies/access-control.md`. It is rewritten in place as each file starts and
 cleared when the run ends. It is shown only when stderr is a terminal, so CI logs and pipes never
-see it. It is also off with `-v`, `--json`, and `--no-progress`.
+see it. It is also off with `-vv`, `--json`, and `--no-progress`.
 
-`-q` leaves out files where nothing happened: the `Unchanged` lines from `republish`, and the "In
-sync" list from `status`. Changes, blocked and skipped files, failures, warnings, and the summary
-line are always printed. Together, `notion-publish republish -q` shows progress while it works and
-then only what needs attention.
+Each `-v` adds a level of detail:
+
+| Flag   | Adds                                                                           |
+|--------|--------------------------------------------------------------------------------|
+| `-v`   | Every file: `Unchanged` lines from `republish`, the in-sync list from `status` |
+| `-vv`  | Each API request, with status, timing, and retries                             |
+| `-vvv` | Request and response bodies, shortened                                         |
 
 ### Seeing the requests
 
-`-v` logs each API request to stderr, with its status and how long it took, plus any retries. It
+`-vv` logs each API request to stderr, with its status and how long it took, plus any retries. It
 also names the connection and workspace the token belongs to, which settles "why can't it see my
 page?" when there is more than one token around.
 
-    $ notion-publish status -v
+    $ notion-publish status -vv
     notion-publish: GET /v1/users/me -> 200 (212 ms)
     notion-publish: authenticated as "Docs Publisher" in "Acme"
     notion-publish: GET /v1/pages/3cfab123-cd45-818b-9a72-c2bd16e85a62 -> 200 (180 ms)
     notion-publish: GET /v1/pages/3cfab123-cd45-818b-9a72-c2bd16e85a62/markdown -> 200 (240 ms)
     ...
 
-`-vv` also prints each request and response body, shortened to 300 characters. The token is never
-logged. Bodies do contain document content, so think before turning on `-vv` in a CI job whose logs
-are kept or shared.
+`-vvv` also prints each request and response body, shortened to 300 characters. The token is never
+logged. Bodies do contain document content, so think before turning on `-vvv` in a CI job whose
+logs are kept or shared.
 
 ## How Notion treats Markdown
 

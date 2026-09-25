@@ -56,6 +56,7 @@ module NotionPublish
       private
 
       def publisher = @publisher ||= Publisher.new(client)
+      def show_unchanged? = listing_everything?
 
       def dry_run_refused
         stderr.puts "republish has no --dry-run. `notion-publish status` shows what it would do."

@@ -95,9 +95,9 @@ class StatusTest < Minitest::Test
     end
   end
 
-  def test_quiet_leaves_out_the_in_sync_list
+  def test_the_in_sync_list_is_left_out_by_default
     with_tree("a.md" => :synced, "b.md" => :modified) do |dir|
-      _, out, = run_cli(["status", dir, "-q"])
+      _, out, = run_cli(["status", dir])
 
       refute_includes out, "In sync (1)"
       refute_includes out, "\n\n\n", "and leaves no gap where it would have been"
@@ -117,9 +117,9 @@ class StatusTest < Minitest::Test
   end
 
   # What is published matters as much as what is not.
-  def test_documents_in_sync_are_listed
+  def test_documents_in_sync_are_listed_with_v
     with_tree("a.md" => :synced, "b.md" => :modified) do |dir|
-      _, out, = run_cli(["status", dir])
+      _, out, = run_cli(["status", dir, "-v"])
 
       assert_includes out, "In sync (1)\n  a.md"
       assert_operator out.index("Changed locally (1)"), :<, out.index("In sync (1)"), "problems come first"

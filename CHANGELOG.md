@@ -10,10 +10,10 @@ All notable changes to this project are recorded here. The format follows
 
 - A progress line on stderr for `republish`, `status`, and `relink` when stderr is a terminal,
   cleared when the run ends. `--no-progress` turns it off.
-- `-q`/`--quiet` leaves out `Unchanged` lines and the "In sync" list of `status`.
-- `-v` logs each API request to stderr, with status, timing, and retries, and names the workspace
-  the token belongs to, even for commands that would not otherwise ask. `-vv` adds shortened request
-  and response bodies. The token is never logged.
+- `republish` and `status` report only files where something happened. `-v` lists every file.
+- `-vv` logs each API request to stderr, with status, timing, and retries, and names the workspace
+  the token belongs to, even for commands that would not otherwise ask. `-vvv` adds shortened
+  request and response bodies. The token is never logged.
 - `notion-publish republish [DIR]` updates every page the identity map tracks, without naming
   files. Each page is updated where it already is. Options that name a destination or describe a
   single document are ignored with a warning.

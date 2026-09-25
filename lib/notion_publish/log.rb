@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module NotionPublish
-  # Request logging for -v and -vv, written to stderr so it never mixes with
+  # Request logging for -vv and -vvv, written to stderr so it never mixes with
   # --json on stdout.
   #
   # Level 1 is one line per request: method, path, status, and time taken,

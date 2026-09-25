@@ -54,7 +54,7 @@ module NotionPublish
       end
 
       def print_group(state, rows)
-        return if state == :unchanged && options[:quiet]
+        return if state == :unchanged && !listing_everything?
 
         label = NotionPublish::Status::STATES[state]
         heading = "#{label[0].upcase}#{label[1..]} (#{rows.length})"

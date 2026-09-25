@@ -9,6 +9,10 @@ module NotionPublish
     module Reporting
       private
 
+      # A single file you named is always reported. In a run over many files,
+      # the ones where nothing happened are listed only with -v.
+      def show_unchanged? = true
+
       # Prints the outcome and returns the exit code it deserves on its own.
       def report(path, outcome, target, warnings)
         warnings.each { |w| stderr.puts w }
@@ -39,7 +43,7 @@ module NotionPublish
       def report_text(path, outcome, target)
         case outcome.action
         when :unchanged
-          stdout.puts "Unchanged #{path}" unless options[:quiet]
+          stdout.puts "Unchanged #{path}" if show_unchanged?
           return
         when :properties then stdout.puts "Updated properties on #{path}"
         when :created then stdout.puts "Published #{path} to #{target.describe}"

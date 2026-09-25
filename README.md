@@ -115,11 +115,13 @@ After that, one command updates every page the identity map tracks:
 
 ```console
 $ notion-publish republish
-Unchanged policies/access-control.md
 Updated policies/incident-response.md to database "Policies" (2efab123-...)
   https://app.notion.com/p/Incident-Response-Policy-...
 12 documents: 11 unchanged, 1 updated
 ```
+
+Only files where something happened are listed. `-v` lists every file. In a terminal, a progress
+line shows which file is being checked while it runs.
 
 `republish` needs no file names and no destination. Each page is updated where it already is, from
 the file's current front matter plus any `--title` or `--keep-h1` it was last published with.
@@ -139,12 +141,10 @@ Changed in Notion (1)
   policies/incident-response.md
     https://app.notion.com/p/...
 
-In sync (10)
-  policies/acceptable-use.md
-  ...
-
 10 in sync, 1 changed locally, 1 changed in Notion
 ```
+
+`status -v` also lists the documents that are in sync.
 
 ### Publishing from GitHub Actions
 

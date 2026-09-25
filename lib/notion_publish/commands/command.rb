@@ -30,12 +30,16 @@ module NotionPublish
       def client = @context.client
       def progress = @progress ||= Progress.new(@context.stderr, enabled: progress_wanted?)
 
-      # Only on a terminal, and not when -v is already showing activity or
-      # --json output is being read by a program.
+      # Only on a terminal, and not when the request log is already showing
+      # activity or --json output is being read by a program.
       def progress_wanted?
         terminal = @context.stderr.respond_to?(:tty?) && @context.stderr.tty?
-        terminal && !options[:no_progress] && !options[:verbose] && !options[:json]
+        terminal && !options[:no_progress] && !logging_requests? && !options[:json]
       end
+
+      # -v: list every file, including those where nothing happened.
+      def listing_everything? = options[:verbose].to_i >= 1
+      def logging_requests? = options[:verbose].to_i >= 2
 
       def map_reporter = ->(message) { stderr.puts message }
 

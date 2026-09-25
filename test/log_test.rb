@@ -59,7 +59,7 @@ class LogTest < Minitest::Test
     err = StringIO.new
     cli = NotionPublish::CLI.new(stdout: out, stderr: err)
 
-    code = with_env("NOTION_API_TOKEN" => "ntn_from_env", "NOTION_API_KEY" => nil) { cli.run(%w[--whoami -vv]) }
+    code = with_env("NOTION_API_TOKEN" => "ntn_from_env", "NOTION_API_KEY" => nil) { cli.run(%w[--whoami -vvv]) }
 
     assert_equal NotionPublish::CLI::OK, code
     assert_includes err.string, "GET /v1/users/me -> 200"
@@ -69,6 +69,17 @@ class LogTest < Minitest::Test
 
   # status never needs /v1/users/me, but under -v the workspace is named
   # anyway, since that is the first thing to check.
+  # -v only lists every file; it does not log requests.
+  def test_a_single_v_logs_no_requests
+    stub_me
+    err = StringIO.new
+    cli = NotionPublish::CLI.new(stdout: StringIO.new, stderr: err)
+
+    with_env("NOTION_API_TOKEN" => "ntn_from_env", "NOTION_API_KEY" => nil) { cli.run(%w[--whoami -v]) }
+
+    refute_includes err.string, "GET /v1/users/me"
+  end
+
   def test_verbose_names_the_workspace_even_when_the_command_would_not_ask
     stub_notion(:get, "/v1/users/me", status: 200, body: { "name" => "Bot", "bot" => { "workspace_name" => "Acme" } })
     Dir.mktmpdir do |dir|
@@ -76,7 +87,7 @@ class LogTest < Minitest::Test
       err = StringIO.new
       cli = NotionPublish::CLI.new(stdout: StringIO.new, stderr: err)
 
-      with_env("NOTION_API_TOKEN" => "ntn_from_env", "NOTION_API_KEY" => nil) { cli.run(["status", dir, "-v"]) }
+      with_env("NOTION_API_TOKEN" => "ntn_from_env", "NOTION_API_KEY" => nil) { cli.run(["status", dir, "-vv"]) }
 
       assert_includes err.string, 'authenticated as "Bot" in "Acme"'
     end
