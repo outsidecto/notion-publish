@@ -25,7 +25,10 @@ module NotionPublish
         end
 
         check = options[:local] != true
-        rows = NotionPublish::Status.new(map, client: check ? client : nil).rows(dir: dir, check_notion: check)
+        progress.start("Checking", map.pages.length)
+        rows = NotionPublish::Status.new(map, client: check ? client : nil)
+                                    .rows(dir: dir, check_notion: check, on_row: ->(key) { progress.step(key) })
+        progress.finish
         options[:json] ? print_json(rows) : print_text(map, rows, check)
         rows.any?(&:actionable?) ? CLI::BLOCKED : CLI::OK
       end
@@ -51,6 +54,8 @@ module NotionPublish
       end
 
       def print_group(state, rows)
+        return if state == :unchanged && options[:quiet]
+
         label = NotionPublish::Status::STATES[state]
         heading = "#{label[0].upcase}#{label[1..]} (#{rows.length})"
         stdout.puts

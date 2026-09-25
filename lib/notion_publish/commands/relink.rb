@@ -19,7 +19,12 @@ module NotionPublish
           return CLI::FAILURE
         end
 
-        fixed = map.pages.sum { |key, raw| relink_page(map, key, PageMap::Entry.from(raw)) }
+        progress.start("Checking", map.pages.length)
+        fixed = map.pages.sum do |key, raw|
+          progress.step(key)
+          relink_page(map, key, PageMap::Entry.from(raw))
+        end
+        progress.finish
         report_orphans(map)
         stdout.puts fixed.zero? ? "No links needed fixing." : "Fixed #{fixed} #{plural(fixed, 'link')}."
         CLI::OK

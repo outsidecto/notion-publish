@@ -55,6 +55,8 @@ Options:
 | `--untracked`                 | `status` only: list files that were never published             |
 | `--page URL_OR_ID`            | `adopt` only: the page this file corresponds to                 |
 | `-y`, `--yes`                 | `adopt` only: accept a title match without asking               |
+| `-q`, `--quiet`               | Only report files where something happened                      |
+| `--no-progress`               | Do not show a progress line in a terminal                       |
 | `-v`, `--verbose`             | Log each API request to stderr; `-vv` adds shortened bodies     |
 | `--token TOKEN`               | API token, instead of the environment                           |
 | `--version`, `-h`, `--help`   |                                                                 |
@@ -569,6 +571,18 @@ Code 3 means a page was edited in Notion, `republish` skipped a file, or `status
 
 The tool never waits for input when there is no terminal. Where it would ask a question, it fails
 and names the flag that answers it.
+
+### Progress and quiet output
+
+In a terminal, `republish`, `status`, and `relink` show one progress line on stderr, such as
+`Checking 12/38  policies/access-control.md`. It is rewritten in place as each file starts and
+cleared when the run ends. It is shown only when stderr is a terminal, so CI logs and pipes never
+see it. It is also off with `-v`, `--json`, and `--no-progress`.
+
+`-q` leaves out files where nothing happened: the `Unchanged` lines from `republish`, and the "In
+sync" list from `status`. Changes, blocked and skipped files, failures, warnings, and the summary
+line are always printed. Together, `notion-publish republish -q` shows progress while it works and
+then only what needs attention.
 
 ### Seeing the requests
 

@@ -43,8 +43,13 @@ module NotionPublish
       @client = client
     end
 
-    def rows(dir: nil, check_notion: true)
-      tracked = @map.pages.map { |key, raw| tracked_row(key, PageMap::Entry.from(raw), check_notion) }
+    # +on_row+ is called with each tracked key before it is checked, so a
+    # caller can show progress.
+    def rows(dir: nil, check_notion: true, on_row: nil)
+      tracked = @map.pages.map do |key, raw|
+        on_row&.call(key)
+        tracked_row(key, PageMap::Entry.from(raw), check_notion)
+      end
       tracked.sort_by { |r| [ACTIONABLE.index(r.state) || 99, r.source] } + untracked(dir)
     end
 

@@ -35,6 +35,31 @@ class RepublishTest < Minitest::Test
     end
   end
 
+  def test_quiet_leaves_out_unchanged_documents
+    with_published do |dir|
+      _, out, = run_cli(["republish", dir, "-q"])
+
+      refute_includes out, "Unchanged"
+      assert_includes out, "1 document: 1 unchanged"
+    end
+  end
+
+  # Progress is for people at a terminal. Tests, pipes, and CI have none.
+  def test_progress_appears_only_on_a_terminal
+    with_published do |dir|
+      _, _, err = run_cli(["republish", dir])
+
+      refute_includes err, "Checking"
+
+      tty = StringIO.new.tap { |io| io.define_singleton_method(:tty?) { true } }
+      cli = NotionPublish::CLI.new(stdout: StringIO.new, stderr: tty, client: client)
+      cli.run(["republish", dir])
+
+      assert_includes tty.string, "Checking 1/1  doc.md"
+      assert tty.string.end_with?("\r\e[K"), "and the line is cleared at the end"
+    end
+  end
+
   def test_a_changed_document_is_updated_in_place
     with_published do |dir, path|
       File.write(path, "# Title\n\nRewritten.\n")

@@ -2,6 +2,7 @@
 
 require_relative "../errors"
 require_relative "../page_map"
+require_relative "../progress"
 require_relative "../property_set"
 require_relative "../reference"
 require_relative "../resolver"
@@ -23,10 +24,18 @@ module NotionPublish
       private
 
       def options = @context.options
-      def stdout = @context.stdout
-      def stderr = @context.stderr
+      def stdout = @stdout ||= progress.wrap(@context.stdout)
+      def stderr = @stderr ||= progress.wrap(@context.stderr)
       def stdin = @context.stdin
       def client = @context.client
+      def progress = @progress ||= Progress.new(@context.stderr, enabled: progress_wanted?)
+
+      # Only on a terminal, and not when -v is already showing activity or
+      # --json output is being read by a program.
+      def progress_wanted?
+        terminal = @context.stderr.respond_to?(:tty?) && @context.stderr.tty?
+        terminal && !options[:no_progress] && !options[:verbose] && !options[:json]
+      end
 
       def map_reporter = ->(message) { stderr.puts message }
 

@@ -42,7 +42,13 @@ module NotionPublish
           return CLI::FAILURE
         end
 
-        results = entries_under(map, File.expand_path(dir)).map { |key, raw| republish(map, key, raw) }
+        entries = entries_under(map, File.expand_path(dir))
+        progress.start("Checking", entries.length)
+        results = entries.map do |key, raw|
+          progress.step(key)
+          republish(map, key, raw)
+        end
+        progress.finish
         stdout.puts summary(results) unless options[:json]
         exit_code(results)
       end

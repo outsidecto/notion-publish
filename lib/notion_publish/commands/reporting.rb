@@ -39,7 +39,7 @@ module NotionPublish
       def report_text(path, outcome, target)
         case outcome.action
         when :unchanged
-          stdout.puts "Unchanged #{path}"
+          stdout.puts "Unchanged #{path}" unless options[:quiet]
           return
         when :properties then stdout.puts "Updated properties on #{path}"
         when :created then stdout.puts "Published #{path} to #{target.describe}"

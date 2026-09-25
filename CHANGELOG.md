@@ -8,6 +8,9 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- A progress line on stderr for `republish`, `status`, and `relink` when stderr is a terminal,
+  cleared when the run ends. `--no-progress` turns it off.
+- `-q`/`--quiet` leaves out `Unchanged` lines and the "In sync" list of `status`.
 - `-v` logs each API request to stderr, with status, timing, and retries, and names the workspace
   the token belongs to, even for commands that would not otherwise ask. `-vv` adds shortened request
   and response bodies. The token is never logged.

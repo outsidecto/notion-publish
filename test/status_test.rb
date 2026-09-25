@@ -95,6 +95,17 @@ class StatusTest < Minitest::Test
     end
   end
 
+  def test_quiet_leaves_out_the_in_sync_list
+    with_tree("a.md" => :synced, "b.md" => :modified) do |dir|
+      _, out, = run_cli(["status", dir, "-q"])
+
+      refute_includes out, "In sync (1)"
+      refute_includes out, "\n\n\n", "and leaves no gap where it would have been"
+      assert_includes out, "Changed locally (1)"
+      assert_includes out, "1 in sync, 1 changed locally"
+    end
+  end
+
   def test_untracked_lists_unpublished_files
     with_tree("a.md" => :synced) do |dir|
       File.write(File.join(dir, "notes.md"), "not for Notion\n")
