@@ -418,16 +418,19 @@ module NotionPublish
     # Each local image was published as a sentinel paragraph. Find it, insert
     # the real image block after it, then delete the sentinel.
     def place_images(page_id, media, uploads, warnings)
-      by_text = blocks_under(page_id).to_h { |block| [plain_text(block), block["id"]] }
+      # Sentinel text => [its block id, the block it sits in]. The image has to
+      # be appended to that parent: Notion refuses an after_block position
+      # under any other block, including the page itself.
+      found = blocks_under(page_id).to_h { |block, parent| [plain_text(block), [block["id"], parent]] }
 
       media.images.each do |image|
-        block_id = by_text[image.sentinel]
+        block_id, parent_id = found[image.sentinel]
         unless block_id
           warnings << "Could not place #{image.path}: its marker was not found on the page."
           next
         end
 
-        @client.patch("/v1/blocks/#{page_id}/children", {
+        @client.patch("/v1/blocks/#{parent_id}/children", {
                         "children" => [Uploader.image_block(uploads[image.index], image.alt)],
                         "position" => { "type" => "after_block", "after_block" => { "id" => block_id } }
                       })
@@ -435,13 +438,14 @@ module NotionPublish
       end
     end
 
-    # Every block on the page, including those nested in list items and
-    # toggles, since an image written under a list item is placed there.
-    # Child pages and databases are separate documents and are not entered.
-    def blocks_under(block_id)
-      @client.get_all("/v1/blocks/#{block_id}/children").flat_map do |block|
+    # Every block on the page as [block, parent id], including blocks nested
+    # in list items and toggles, since an image written under a list item is
+    # placed there. Child pages and databases are separate documents and are
+    # not entered.
+    def blocks_under(parent_id)
+      @client.get_all("/v1/blocks/#{parent_id}/children").flat_map do |block|
         nested = block["has_children"] && !%w[child_page child_database].include?(block["type"])
-        nested ? [block, *blocks_under(block["id"])] : [block]
+        nested ? [[block, parent_id], *blocks_under(block["id"])] : [[block, parent_id]]
       end
     end
 

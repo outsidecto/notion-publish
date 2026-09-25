@@ -124,6 +124,8 @@ class PublisherMediaTest < Minitest::Test
       "results" => [{ "id" => "list-item", "type" => "numbered_list_item", "has_children" => true,
                       "numbered_list_item" => { "rich_text" => [{ "plain_text" => "The figure:" }] } }]
     ))
+    stub_request(:patch, "#{StubbingHelpers::API}/v1/blocks/list-item/children")
+      .to_return(status: 200, body: JSON.generate("results" => [{ "id" => "img" }]))
     stub_request(:get, %r{/v1/blocks/list-item/children}).to_return(status: 200, body: JSON.generate(
       "results" => [{ "id" => MARKER_BLOCK, "type" => "paragraph",
                       "paragraph" => { "rich_text" => [{ "plain_text" => SENTINEL }] } }]
@@ -132,9 +134,11 @@ class PublisherMediaTest < Minitest::Test
     publish("1. The figure:\n   ![a](diagram.png)\n", warnings: warnings)
 
     assert_empty warnings
-    assert_requested(:patch, "#{StubbingHelpers::API}/v1/blocks/#{PAGE}/children") do |req|
+    # Appended under the list item that holds the sentinel, not under the page.
+    assert_requested(:patch, "#{StubbingHelpers::API}/v1/blocks/list-item/children") do |req|
       JSON.parse(req.body).dig("position", "after_block", "id") == MARKER_BLOCK
     end
+    assert_not_requested(:patch, "#{StubbingHelpers::API}/v1/blocks/#{PAGE}/children")
     assert_requested @delete
   end
 
