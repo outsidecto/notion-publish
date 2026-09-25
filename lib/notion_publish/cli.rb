@@ -37,8 +37,11 @@ module NotionPublish
         @client = client
       end
 
+      # Under -v, say up front which connection and workspace the token
+      # belongs to. That is the first question when a page cannot be found and
+      # more than one token is in use.
       def client
-        @client ||= Client.new(token: options[:token], log: log)
+        @client ||= Client.new(token: options[:token], log: log).tap { |c| c.me if options[:verbose] }
       end
 
       def log

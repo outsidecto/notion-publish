@@ -67,6 +67,21 @@ class LogTest < Minitest::Test
     refute_includes out.string, "notion-publish: GET"
   end
 
+  # status never needs /v1/users/me, but under -v the workspace is named
+  # anyway, since that is the first thing to check.
+  def test_verbose_names_the_workspace_even_when_the_command_would_not_ask
+    stub_notion(:get, "/v1/users/me", status: 200, body: { "name" => "Bot", "bot" => { "workspace_name" => "Acme" } })
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "notion-pages.yml"), "pages: {}\n")
+      err = StringIO.new
+      cli = NotionPublish::CLI.new(stdout: StringIO.new, stderr: err)
+
+      with_env("NOTION_API_TOKEN" => "ntn_from_env", "NOTION_API_KEY" => nil) { cli.run(["status", dir, "-v"]) }
+
+      assert_includes err.string, 'authenticated as "Bot" in "Acme"'
+    end
+  end
+
   private
 
   def logged(level)

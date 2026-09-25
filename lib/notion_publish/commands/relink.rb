@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 require_relative "command"
 require_relative "../links"
 
@@ -25,18 +27,31 @@ module NotionPublish
       private
 
       def relink_page(map, key, entry)
-        updates = pending_updates(map, entry.id)
+        before = read_markdown(entry.id)
+        updates = pending_updates(map, before)
         return 0 if updates.empty?
 
         client.patch("/v1/pages/#{entry.id}/markdown",
                      { "type" => "update_content", "update_content" => { "content_updates" => updates } })
+        rehash(map, key, entry, before)
         stdout.puts "#{File.basename(key)}: fixed #{updates.length} #{plural(updates.length, 'link')}"
         updates.length
       end
 
-      def pending_updates(map, page_id)
-        markdown = client.get("/v1/pages/#{page_id}/markdown")["markdown"].to_s
+      # The page now differs from what was recorded after publishing, and it
+      # was this tool that changed it. Record the new content, or the next
+      # status would call it an edit made in Notion. Only when the page was in
+      # sync beforehand: an edit someone else made must stay visible.
+      def rehash(map, key, entry, before)
+        return unless entry.notion_sha256 == Digest::SHA256.hexdigest(before)
 
+        after = Digest::SHA256.hexdigest(read_markdown(entry.id))
+        map.record(File.expand_path(key, map.dir), entry.with(notion_sha256: after))
+      end
+
+      def read_markdown(page_id) = client.get("/v1/pages/#{page_id}/markdown")["markdown"].to_s
+
+      def pending_updates(map, markdown)
         map.pages.filter_map do |key, raw|
           mangled = Links.mangled(File.basename(key))
           next unless markdown.include?("](#{mangled})")

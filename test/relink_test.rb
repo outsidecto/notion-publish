@@ -26,6 +26,38 @@ class RelinkTest < Minitest::Test
     end
   end
 
+  # Relinking changes the page, so the recorded Notion hash has to follow, or
+  # every relinked page would read as edited in Notion afterwards.
+  def test_a_relinked_page_that_was_in_sync_records_its_new_content
+    before = "See [B](https://b.md).\n"
+    after = "See [B](https://notion.so/B).\n"
+    with_published(notion: { "a" => before }) do |dir|
+      stub_request(:get, "#{StubbingHelpers::API}/v1/pages/#{IDS['a']}/markdown")
+        .to_return({ status: 200, body: JSON.generate("markdown" => before) },
+                   { status: 200, body: JSON.generate("markdown" => after) })
+      stub_markdown("b", "Nothing to fix.\n")
+      stub_patch("a")
+
+      run_cli(["relink", dir])
+
+      assert_equal Digest::SHA256.hexdigest(after), map_in(dir).entry(File.join(dir, "a.md")).notion_sha256
+    end
+  end
+
+  def test_a_relinked_page_edited_in_notion_keeps_showing_the_edit
+    edited = "Someone edited this. See [B](https://b.md).\n"
+    with_published(notion: { "a" => "See [B](https://b.md).\n" }) do |dir|
+      stub_markdown("a", edited)
+      stub_markdown("b", "Nothing to fix.\n")
+      stub_patch("a")
+
+      run_cli(["relink", dir])
+
+      assert_equal Digest::SHA256.hexdigest("See [B](https://b.md).\n"),
+                   map_in(dir).entry(File.join(dir, "a.md")).notion_sha256
+    end
+  end
+
   def test_pages_with_nothing_to_fix_are_not_patched
     with_published do |dir|
       stub_markdown("a", "No links here.\n")
@@ -63,13 +95,17 @@ class RelinkTest < Minitest::Test
 
   private
 
-  def with_published(write_sources: true)
+  def map_in(dir) = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
+
+  def with_published(write_sources: true, notion: {})
     Dir.mktmpdir do |dir|
       stub_me
       map = NotionPublish::PageMap.new(File.join(dir, NotionPublish::PageMap::FILENAME))
       %w[a b].each do |name|
         File.write(File.join(dir, "#{name}.md"), "x") if write_sources
-        entry = NotionPublish::PageMap::Entry.new(id: IDS[name], url: "https://notion.so/#{name.upcase}")
+        hash = notion[name] && Digest::SHA256.hexdigest(notion[name])
+        entry = NotionPublish::PageMap::Entry.new(id: IDS[name], url: "https://notion.so/#{name.upcase}",
+                                                  notion_sha256: hash)
         map.record(File.join(dir, "#{name}.md"), entry)
       end
       yield dir

@@ -9,7 +9,7 @@ All notable changes to this project are recorded here. The format follows
 ### Added
 
 - `-v` logs each API request to stderr, with status, timing, and retries, and names the workspace
-  the token belongs to. `-vv` adds shortened request and response bodies. The token is never
+  the token belongs to, even for commands that would not otherwise ask. `-vv` adds shortened request and response bodies. The token is never
   logged.
 - `notion-publish republish [DIR]` updates every page the identity map tracks, without naming
   files. Each page is updated where it already is. Options that name a destination or describe a
@@ -20,6 +20,8 @@ All notable changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- `relink` now records each fixed page's new Notion hash when the page was in sync beforehand.
+  Before, every relinked page then read as "changed in Notion" and blocked the next publish.
 - A page deleted in Notion sits in the trash, where the API still returns it. `status` reported
   such a page as in sync or changed in Notion, and publishing tried to update it. `status` now
   reports "page is in Notion's trash", and publishing forgets the entry and creates a new page.
