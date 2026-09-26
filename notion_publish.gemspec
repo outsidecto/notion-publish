@@ -17,14 +17,17 @@ Gem::Specification.new do |spec|
     and refuses to overwrite a page someone has edited in Notion. Not
     affiliated with or endorsed by Notion Labs, Inc.
   TEXT
-  spec.homepage = "https://github.com/outsidecto/notion-publish"
+  spec.homepage = "https://outsidecto.com/notion-publish/"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2"
 
-  spec.metadata["source_code_uri"] = spec.homepage
-  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
-  spec.metadata["documentation_uri"] = "#{spec.homepage}/blob/main/docs/usage.md"
-  spec.metadata["bug_tracker_uri"] = "#{spec.homepage}/issues"
+  # rubygems.org shows homepage and source code as separate links, so the
+  # project page and the repository do not have to be the same URL.
+  repository = "https://github.com/outsidecto/notion-publish"
+  spec.metadata["source_code_uri"] = repository
+  spec.metadata["changelog_uri"] = "#{repository}/blob/main/CHANGELOG.md"
+  spec.metadata["documentation_uri"] = "#{repository}/blob/main/docs/usage.md"
+  spec.metadata["bug_tracker_uri"] = "#{repository}/issues"
   spec.metadata["rubygems_mfa_required"] = "true"
 
   spec.files = Dir["lib/**/*.rb", "exe/*", "docs/**/*.md", "README.md", "CHANGELOG.md", "LICENSE"]
