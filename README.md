@@ -199,6 +199,48 @@ that file with `--force`.
 property type, the manifest, adopting pages that already exist, images, exit codes, and JSON
 output.
 
+## What to put in your own README
+
+Somebody who joins the repository you publish from will find `notion-publish-manifest.yml` in the
+root and have no idea what it is or what they are allowed to change. A pointer to this page does not
+help them much. Here is a section to copy into that repository's README instead, with the
+destination and the token filled in:
+
+```markdown
+## Publishing to Notion
+
+These documents are mirrored into Notion. Git is the authoritative copy. Edit the Markdown here and
+never the Notion page: publishing replaces the page body, so an edit made in Notion gets discarded.
+
+`notion-publish-manifest.yml` records which Notion page each file became. The tool writes it and we
+commit it. Do not edit it by hand.
+
+Once, to set up:
+
+    gem install notion_publish
+    export NOTION_API_TOKEN=...      # ask <who has it> for the token
+
+| What you want to do              | Command                                          |
+|----------------------------------|--------------------------------------------------|
+| See what is out of step          | `notion-publish status`                          |
+| Update Notion after editing      | `notion-publish republish`                       |
+| Add a document Notion lacks      | `notion-publish <file> --parent '<dest>' --link` |
+| Point a file at an existing page | `notion-publish adopt <file> --page <url>`       |
+| Replace a page edited in Notion  | `notion-publish <file> --force`                  |
+
+`status` only reads, so it is always safe to run first.
+
+If a run reports that a page changed in Notion, somebody edited the mirror. Open the page, move
+anything worth keeping into the Markdown here, then publish that one file with `--force`.
+
+Commit the manifest along with your change, so the next person's run knows what happened.
+```
+
+Two things are worth keeping when you adapt it. Name someone who can hand over the token, because
+that is where a new person gets stuck first. And keep the line about not editing pages in Notion:
+the tool will refuse to overwrite such an edit, but only after somebody has already spent time
+making it.
+
 ## Known limits
 
 - A new file must be published once by name before `republish` includes it.
