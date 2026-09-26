@@ -1,6 +1,7 @@
 # notion-publish
 
 [![CI](https://github.com/outsidecto/notion-publish/actions/workflows/ci.yml/badge.svg)](https://github.com/outsidecto/notion-publish/actions/workflows/ci.yml)
+[![Gem Version](https://badge.fury.io/rb/notion_publish.svg)](https://rubygems.org/gems/notion_publish)
 
 Keep Notion pages in step with Markdown files in a Git repository.
 
