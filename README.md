@@ -35,6 +35,8 @@ Unchanged policies/access-control.md
 - **Uploads local images** and places them in the page.
 - **Fixes wrapped text.** Notion treats each line of a hard-wrapped paragraph as its own block. The
   tool joins the lines first.
+- **Keeps code blocks whole.** Fences Notion's parser misreads, such as `~~~` or a fence showing
+  another fence, still arrive as code, labelled with a language Notion knows.
 - **Turns GitHub alerts into callouts.** A `> [!NOTE]` or `> [!WARNING]` block becomes a Notion
   callout with a matching icon and colour.
 - **Reports drift.** `notion-publish status` lists files changed locally, pages changed in Notion

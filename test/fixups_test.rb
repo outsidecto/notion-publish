@@ -71,7 +71,7 @@ class FixupsTest < Minitest::Test
   end
 
   def test_text_after_a_fence_still_joins
-    assert_equal "```\nx\n```\nOne two.\n", join("```\nx\n```\nOne\ntwo.\n")
+    assert_equal "```ruby\nx\n```\nOne two.\n", join("```ruby\nx\n```\nOne\ntwo.\n")
   end
 
   # An explicit hard break is the one case the author did mean to be seen.
@@ -182,6 +182,52 @@ class FixupsTest < Minitest::Test
     body = "```markdown\n> [!NOTE]\n> Text.\n```\n"
 
     assert_equal body, join(body)
+  end
+
+  # Notion guesses a language for an unlabelled fence, usually javascript.
+  def test_an_unlabelled_fence_is_labelled_plain_text
+    assert_equal "```plain text\nSELECT 1;\n```\n", join("```\nSELECT 1;\n```\n")
+  end
+
+  # Notion ignores a label with anything after it.
+  def test_only_the_first_word_of_a_label_is_kept
+    assert_equal "```ruby\nputs 1\n```\n", join("```ruby title=\"x.rb\"\nputs 1\n```\n")
+  end
+
+  # Notion's parser reads neither tildes nor more than three backticks.
+  def test_a_tilde_fence_becomes_backticks
+    assert_equal "```ruby\nputs 1\n```\n", join("~~~ruby\nputs 1\n~~~\n")
+  end
+
+  def test_a_longer_fence_becomes_three_backticks
+    assert_equal "```shell\nls\n```\n", join("````sh\nls\n`````\n")
+  end
+
+  # A shorter run, or the other character, is code rather than the end of the
+  # fence, so the lines inside are not joined. Three backticks could not hold
+  # that code, so the fence is left as written.
+  def test_a_fence_shown_inside_a_longer_fence_is_left_as_code
+    body = "````markdown\n```\nline one\nline two\n```\n````\n"
+
+    assert_equal "#{body}After wrapped.\n", join("#{body}After\nwrapped.\n")
+  end
+
+  def test_backticks_inside_a_tilde_fence_are_code
+    body = "~~~\n```\nline one\nline two\n~~~\n"
+
+    assert_equal body, join(body)
+  end
+
+  def test_a_fence_under_a_list_item_keeps_its_indentation
+    assert_equal "- Item\n\n  ```plain text\n  SELECT 1;\n  ```\n", join("- Item\n\n  ```\n  SELECT 1;\n  ```\n")
+  end
+
+  def test_a_fence_inside_an_alert_is_labelled_too
+    assert_includes join("> [!NOTE]\n> Text.\n>\n> ```\n> x\n> ```\n"), "\t```plain text\n\tx\n\t```\n"
+  end
+
+  def test_an_unclosed_fence_stays_unclosed
+    assert_equal "```plain text\nnever\nclosed\n", join("```\nnever\nclosed\n")
   end
 
   def test_an_image_after_a_wrapped_paragraph_is_not_joined_into_it

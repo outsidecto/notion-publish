@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "fence"
+require_relative "languages"
+
 module NotionPublish
   # Line-level corrections applied to a Markdown body before Notion parses it.
   #
@@ -19,8 +22,13 @@ module NotionPublish
   # GitHub alerts (a blockquote whose first line is "> [!NOTE]" and the like)
   # mean nothing to Notion, which shows the marker as literal text in a quote.
   # They become callouts instead, with an icon and colour per alert type.
+  #
+  # Notion's parser also reads only three-backtick fences, and guesses a
+  # language when the label is missing, has extra words, or is one it does
+  # not know. So every fence is rewritten as ``` with Notion's name for its
+  # language, or "plain text". Code Notion's parser cannot hold at all is left
+  # for CodeBlocks.
   module Fixups
-    FENCE = /\A\s*(?:`{3,}|~{3,})/
     BLANK = /\A\s*\z/
     HEADING = /\A {0,3}\#{1,6}(?:\s|\z)/
     THEMATIC = /\A {0,3}([-*_])(?:\s*\1){2,}\s*\z/
@@ -47,7 +55,43 @@ module NotionPublish
 
     module_function
 
-    def apply(body) = join_soft_wraps(body)
+    def apply(body) = join_soft_wraps(normalize_fences(body))
+
+    # Rewrites each fence as Notion's parser understands it: three backticks
+    # and Notion's name for the language, or "plain text". The code
+    # inside is untouched. An unclosed fence stays unclosed, since Notion, like
+    # CommonMark, runs it to the end of the document.
+    def normalize_fences(body)
+      out = []
+      block = nil
+      fence = Fence.new
+
+      body.to_s.lines.each do |raw|
+        case fence.step(raw)
+        when :open then block = { opening: fence.opening, lines: [raw] }
+        when :code then block[:lines] << raw
+        when :close
+          out.concat(rewrite_fence(block, raw))
+          block = nil
+        else out << raw
+        end
+      end
+
+      out.concat(rewrite_fence(block, nil)) if block
+      out.join
+    end
+
+    # Code with a line Notion would read as a fence cannot be written in a form
+    # its parser keeps whole. That block is left as written, for CodeBlocks to
+    # send through the block API.
+    def rewrite_fence(block, closing)
+      opening, *code = block[:lines]
+      return [opening, *code, *closing] if Fence.too_deep_for_notion?(code)
+
+      start = block[:opening]
+      opened = "#{start.indent}```#{Languages.notion_name(start.language)}\n"
+      [opened, *code, *(closing && "#{closing[/\A\s*/]}```\n")]
+    end
 
     # Notion consumes a leading H1 as the page title -- but only when it is the
     # document's *only* H1. A second one anywhere (a "# Revision History" at the
@@ -69,14 +113,13 @@ module NotionPublish
       lines = body.to_s.lines
       out = []
       run = nil
-      in_fence = false
+      fence = Fence.new
       index = 0
 
       while index < lines.length
         raw = lines[index]
 
-        if raw.match?(FENCE) || in_fence
-          in_fence = !in_fence if raw.match?(FENCE)
+        if fence.step(raw)
           out.concat(flush(run)) << raw
           run = nil
         elsif (alert = alert_at(lines, index))
@@ -118,7 +161,7 @@ module NotionPublish
     # inside the callout.
     def callout(type, inner)
       icon, color = ALERT_STYLES.fetch(type)
-      body = join_soft_wraps(inner).lines.map { |text| text.match?(BLANK) ? "\n" : "\t#{text}" }
+      body = apply(inner).lines.map { |text| text.match?(BLANK) ? "\n" : "\t#{text}" }
       body.shift while body.first == "\n"
       body.pop while body.last == "\n"
 

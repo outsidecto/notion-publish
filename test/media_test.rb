@@ -48,6 +48,12 @@ class MediaTest < Minitest::Test
     assert_equal body, media.body_with_sentinels
   end
 
+  def test_backticks_inside_a_tilde_fence_do_not_end_it
+    media = scan("~~~\n```\n![a](x.png)\n~~~\n")
+
+    refute_predicate media, :any?
+  end
+
   def test_tilde_fences_are_honoured_too
     media = scan("~~~\n![a](x.png)\n~~~\n")
 

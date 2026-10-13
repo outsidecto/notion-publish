@@ -7,6 +7,7 @@ require "time"
 require_relative "notion_digest"
 require_relative "decoration"
 require_relative "errors"
+require_relative "code_blocks"
 require_relative "fixups"
 require_relative "links"
 require_relative "media"
@@ -51,8 +52,9 @@ module NotionPublish
       def all = document.merge(flags)
     end
 
-    # The Markdown to send, and the local images it stands in for.
-    Body = Data.define(:markdown, :media, :uploads)
+    # The Markdown to send, and the local images and code blocks its sentinels
+    # stand in for.
+    Body = Data.define(:markdown, :media, :uploads, :code)
 
     def initialize(client)
       @client = client
@@ -288,26 +290,29 @@ module NotionPublish
                create(job, body.markdown, desired)
              end
 
-      place_images(page["id"], body.media, body.uploads, job.warnings) unless body.uploads.empty?
+      place_blocks(page["id"], body, job.warnings) if body.uploads.any? || body.code.any?
       record(job, page, source_hash, props, existing)
       Outcome.new(action: existing ? :updated : :created, page: page, entry: job.manifest&.entry(job.source),
                   detail: nil)
     end
 
-    # Fixes, link rewriting, and image uploads. Uploads happen here, before any
-    # page is touched, so a missing or oversized file fails cleanly.
+    # Fixes, link rewriting, code Notion cannot parse, and image uploads.
+    # Uploads happen here, before any page is touched, so a missing or
+    # oversized file fails cleanly.
     def prepare_body(job)
       prepared = prepare(job)
-      media = scan_media(prepared)
+      code = CodeBlocks.scan(prepared.body)
+      media = scan_media(prepared.with_body(code.body))
       note_inline(media, job.warnings)
-      return Body.new(markdown: prepared.body, media: media, uploads: {}) unless media.any?
+      body = Body.new(markdown: code.body, media: media, uploads: {}, code: code)
+      return body unless media.any?
 
       unless job.upload
         note_skipped_uploads(media, job.warnings)
-        return Body.new(markdown: prepared.body, media: media, uploads: {})
+        return body
       end
 
-      Body.new(markdown: media.body_with_sentinels, media: media, uploads: upload_all(media))
+      body.with(markdown: media.body_with_sentinels, uploads: upload_all(media))
     end
 
     # A republished page that had to be recreated starts without the
@@ -418,26 +423,37 @@ module NotionPublish
       media.images.to_h { |image| [image.index, uploader.upload(media.resolved_path(image))] }
     end
 
-    # Each local image was published as a sentinel paragraph. Find it, insert
-    # the real image block after it, then delete the sentinel.
-    def place_images(page_id, media, uploads, warnings)
-      # Sentinel text => [its block id, the block it sits in]. The image has to
-      # be appended to that parent: Notion refuses an after_block position
+    # Each uploaded image and each code block Notion could not parse was
+    # published as a sentinel paragraph. Find it, insert the real block after
+    # it, then delete the sentinel.
+    def place_blocks(page_id, body, warnings)
+      # Sentinel text => [its block id, the block it sits in]. The new block has
+      # to be appended to that parent: Notion refuses an after_block position
       # under any other block, including the page itself.
       found = blocks_under(page_id).to_h { |block, parent| [plain_text(block), [block["id"], parent]] }
 
-      media.images.each do |image|
-        block_id, parent_id = found[image.sentinel]
+      replacements(body).each do |sentinel, children, what|
+        block_id, parent_id = found[sentinel]
         unless block_id
-          warnings << "Could not place #{image.path}: its marker was not found on the page."
+          warnings << "Could not place #{what}: its marker was not found on the page."
           next
         end
 
         @client.patch("/v1/blocks/#{parent_id}/children", {
-                        "children" => [Uploader.image_block(uploads[image.index], image.alt)],
+                        "children" => children,
                         "position" => { "type" => "after_block", "after_block" => { "id" => block_id } }
                       })
         @client.delete("/v1/blocks/#{block_id}")
+      end
+    end
+
+    # [sentinel, blocks to insert, what to call it in a warning] for each.
+    def replacements(body)
+      code = body.code.blocks.map { |block| [block.sentinel, block.to_notion, "a code block"] }
+      return code if body.uploads.empty?
+
+      code + body.media.images.map do |image|
+        [image.sentinel, [Uploader.image_block(body.uploads[image.index], image.alt)], image.path]
       end
     end
 

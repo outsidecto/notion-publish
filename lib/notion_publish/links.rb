@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "fence"
+
 module NotionPublish
   # Rewrites links between documents in the same set.
   #
@@ -9,7 +11,6 @@ module NotionPublish
   # Notion URL before sending avoids that entirely; anything still unresolved is
   # reported rather than shipped.
   class Links
-    FENCE = /\A\s*(?:`{3,}|~{3,})/
     # A link, not an image: the negative lookbehind drops ![alt](...).
     LINK = /(?<!!)\[([^\]]*)\]\(\s*([^)\s]+?)\s*(?:"[^"]*")?\s*\)/
     ABSOLUTE = %r{\A(?:https?://|mailto:|#)}i
@@ -27,14 +28,10 @@ module NotionPublish
     end
 
     def rewrite(body)
-      in_fence = false
+      fence = Fence.new
 
       body.to_s.lines.map do |line|
-        if line.match?(FENCE)
-          in_fence = !in_fence
-          next line
-        end
-        next line if in_fence
+        next line if fence.step(line)
 
         line.gsub(LINK) do
           text = Regexp.last_match(1)
