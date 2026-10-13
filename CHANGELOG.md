@@ -4,6 +4,14 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are published
+  as Notion callouts with an icon and colour for each type. Notion showed them as quotes containing
+  the marker.
+
 ## [0.1.0] - 2026-09-26
 
 First public release.
@@ -33,4 +41,5 @@ First public release.
   request, and `-vvv` adds shortened bodies. The token is never logged.
 - `--dry-run` and `--json` output for scripts and CI.
 
+[Unreleased]: https://github.com/outsidecto/notion-publish/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/outsidecto/notion-publish/releases/tag/v0.1.0
