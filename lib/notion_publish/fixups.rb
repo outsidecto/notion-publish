@@ -15,6 +15,10 @@ module NotionPublish
   # of how the file is stored, not something the author meant to be seen. Only
   # an explicit hard break -- two trailing spaces, or a trailing backslash --
   # becomes <br>, which is what Notion's own markdown output uses.
+  #
+  # GitHub alerts (a blockquote whose first line is "> [!NOTE]" and the like)
+  # mean nothing to Notion, which shows the marker as literal text in a quote.
+  # They become callouts instead, with an icon and colour per alert type.
   module Fixups
     FENCE = /\A\s*(?:`{3,}|~{3,})/
     BLANK = /\A\s*\z/
@@ -29,6 +33,17 @@ module NotionPublish
     QUOTE = /\A {0,3}>[ \t]?(.*)\z/
     LIST = /\A(\s*(?:[-*+]|\d+[.)])\s+)(.*)\z/
     HARD_BREAK = /(?: {2,}|\\)\z/
+    # GitHub only recognises the marker alone on the first line of a top-level
+    # blockquote, in any letter case.
+    ALERT = /\A {0,3}>[ \t]*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*\z/i
+    # GitHub's colours for each type, as Notion background colours.
+    ALERT_STYLES = {
+      "NOTE" => ["📘", "blue_bg"],
+      "TIP" => ["💡", "green_bg"],
+      "IMPORTANT" => ["❗", "purple_bg"],
+      "WARNING" => ["⚠️", "yellow_bg"],
+      "CAUTION" => ["🛑", "red_bg"]
+    }.freeze
 
     module_function
 
@@ -51,32 +66,63 @@ module NotionPublish
     end
 
     def join_soft_wraps(body)
+      lines = body.to_s.lines
       out = []
       run = nil
       in_fence = false
+      index = 0
 
-      body.to_s.lines.each do |raw|
-        line = raw.chomp
+      while index < lines.length
+        raw = lines[index]
 
-        if line.match?(FENCE)
-          out.concat(flush(run))
+        if raw.match?(FENCE) || in_fence
+          in_fence = !in_fence if raw.match?(FENCE)
+          out.concat(flush(run)) << raw
           run = nil
-          in_fence = !in_fence
-          out << raw
+        elsif (alert = alert_at(lines, index))
+          type, inner, index = alert
+          out.concat(flush(run)).concat(callout(type, inner))
+          run = nil
           next
+        else
+          run, emitted = classify(raw.chomp, raw, run)
+          out.concat(emitted)
         end
-
-        if in_fence
-          out << raw
-          next
-        end
-
-        run, emitted = classify(line, raw, run)
-        out.concat(emitted)
+        index += 1
       end
 
       out.concat(flush(run))
       out.join
+    end
+
+    # Returns [type, inner_markdown, index_after] when an alert starts at
+    # lines[start], or nil. The alert runs to the last line of its blockquote.
+    def alert_at(lines, start)
+      type = lines[start].chomp[ALERT, 1]
+      return nil unless type
+      return nil if start.positive? && lines[start - 1].chomp.match?(QUOTE)
+
+      finish = start + 1
+      inner = []
+      while finish < lines.length && (match = lines[finish].chomp.match(QUOTE))
+        inner << "#{match[1]}\n"
+        finish += 1
+      end
+      # A marker with nothing under it is an ordinary quote on GitHub too.
+      return nil if inner.all? { |text| text.match?(BLANK) }
+
+      [type.upcase, inner.join, finish]
+    end
+
+    # Each line of the alert's body, already joined, is indented one tab to sit
+    # inside the callout.
+    def callout(type, inner)
+      icon, color = ALERT_STYLES.fetch(type)
+      body = join_soft_wraps(inner).lines.map { |text| text.match?(BLANK) ? "\n" : "\t#{text}" }
+      body.shift while body.first == "\n"
+      body.pop while body.last == "\n"
+
+      ["<callout icon=\"#{icon}\" color=\"#{color}\">\n", *body, "</callout>\n"]
     end
 
     # Returns [new_run, lines_to_emit].

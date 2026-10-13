@@ -542,7 +542,7 @@ reported. Images at `https://` URLs are passed through and must stay publicly re
 ## What is changed before publishing
 
 Notion parses CommonMark and GitHub-flavored Markdown well. Tables, nested lists, task lists, and
-code fences all come through. There is one major exception, which the tool corrects.
+code fences all come through. There are two exceptions, which the tool corrects.
 
 **Soft line breaks.** In CommonMark, lines next to each other form one paragraph. Notion makes a
 separate block of each line. A file wrapped at a fixed width would arrive double-spaced, and wrapped
@@ -550,6 +550,23 @@ list items would fall out of their list. The tool joins each paragraph, list ite
 back into one line with spaces before sending. An explicit hard break (two trailing spaces, or a
 trailing backslash) becomes `<br>`. An image alone on its line is never joined into the text above
 it. Code fences and table rows are not touched.
+
+**Alerts.** GitHub shows a block quote whose first line is `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,
+`[!WARNING]`, or `[!CAUTION]` as a coloured
+[alert](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts).
+Notion would show it as a quote with the marker in it, so the tool sends it as a callout instead.
+The marker is dropped, and everything else in the quote goes inside the callout.
+
+| Alert       | Icon | Colour |
+|-------------|------|--------|
+| `NOTE`      | 📘   | Blue   |
+| `TIP`       | 💡   | Green  |
+| `IMPORTANT` | ❗   | Purple |
+| `WARNING`   | ⚠️   | Yellow |
+| `CAUTION`   | 🛑   | Red    |
+
+As on GitHub, the marker must be alone on the first line of a quote that is not inside a list or
+another quote. Anything else stays an ordinary quote.
 
 The leading H1 is also removed, as described under [Title, icon, and cover](#title-icon-and-cover).
 

@@ -135,6 +135,55 @@ class FixupsTest < Minitest::Test
                  NotionPublish::Fixups.apply(body)
   end
 
+  # Notion shows a GitHub alert as a quote with "[!NOTE]" in it.
+  def test_an_alert_becomes_a_callout
+    assert_equal "Text.\n\n<callout icon=\"📘\" color=\"blue_bg\">\n\tUseful information that wraps.\n</callout>\n",
+                 join("Text.\n\n> [!NOTE]\n> Useful information\n> that wraps.\n")
+  end
+
+  def test_each_alert_type_has_its_own_style
+    { "TIP" => "💡\" color=\"green_bg", "IMPORTANT" => "❗\" color=\"purple_bg",
+      "WARNING" => "⚠️\" color=\"yellow_bg", "CAUTION" => "🛑\" color=\"red_bg" }.each do |type, style|
+      assert_includes join("> [!#{type}]\n> Text.\n"), "<callout icon=\"#{style}\">"
+    end
+  end
+
+  def test_the_alert_marker_is_case_insensitive
+    assert_includes join("> [!warning]\n> Text.\n"), "color=\"yellow_bg\""
+  end
+
+  def test_an_alert_ends_with_its_blockquote
+    assert_equal "<callout icon=\"📘\" color=\"blue_bg\">\n\tIn.\n</callout>\nOut.\n",
+                 join("> [!NOTE]\n> In.\nOut.\n")
+  end
+
+  def test_an_alert_keeps_several_blocks_inside_the_callout
+    assert_equal "<callout icon=\"💡\" color=\"green_bg\">\n\tFirst para.\n\n\t- An item that wraps\n</callout>\n",
+                 join("> [!TIP]\n> First\n> para.\n>\n> - An item\n>   that wraps\n")
+  end
+
+  def test_a_marker_with_text_on_its_line_is_an_ordinary_quote
+    assert_equal "> [!NOTE] Text.\n", join("> [!NOTE] Text.\n")
+  end
+
+  def test_a_marker_after_the_first_line_of_a_quote_is_left_alone
+    assert_equal "> Quote. [!NOTE] Text.\n", join("> Quote.\n> [!NOTE]\n> Text.\n")
+  end
+
+  def test_a_marker_with_nothing_under_it_is_left_alone
+    assert_equal "> [!NOTE]\n", join("> [!NOTE]\n")
+  end
+
+  def test_an_unknown_alert_type_is_left_alone
+    assert_equal "> [!DANGER] Text.\n", join("> [!DANGER]\n> Text.\n")
+  end
+
+  def test_an_alert_inside_a_fence_is_left_alone
+    body = "```markdown\n> [!NOTE]\n> Text.\n```\n"
+
+    assert_equal body, join(body)
+  end
+
   def test_an_image_after_a_wrapped_paragraph_is_not_joined_into_it
     assert_equal "Some text that wraps.\n\n![A](a.png)\n",
                  NotionPublish::Fixups.apply("Some text\nthat wraps.\n![A](a.png)\n")
