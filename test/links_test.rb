@@ -82,6 +82,18 @@ class LinksTest < Minitest::Test
     end
   end
 
+  # The inner ``` is code, not the end of the fence.
+  def test_links_after_a_fence_shown_inside_a_longer_fence_are_left_alone
+    with_registry do |registry, dir|
+      record(registry, File.join(dir, "a.md"), "https://notion.so/A")
+      body = "````markdown\n```\n[x](a.md)\n```\n````\n"
+
+      out, = rewrite(body, registry, dir)
+
+      assert_equal body, out
+    end
+  end
+
   def test_links_inside_fenced_code_are_left_alone
     with_registry do |registry, dir|
       record(registry, File.join(dir, "a.md"), "https://notion.so/A")

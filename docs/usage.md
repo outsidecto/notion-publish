@@ -542,14 +542,31 @@ reported. Images at `https://` URLs are passed through and must stay publicly re
 ## What is changed before publishing
 
 Notion parses CommonMark and GitHub-flavored Markdown well. Tables, nested lists, task lists, and
-code fences all come through. There are two exceptions, which the tool corrects.
+code fences all come through. There are three exceptions, which the tool corrects.
 
 **Soft line breaks.** In CommonMark, lines next to each other form one paragraph. Notion makes a
 separate block of each line. A file wrapped at a fixed width would arrive double-spaced, and wrapped
 list items would fall out of their list. The tool joins each paragraph, list item, and block quote
 back into one line with spaces before sending. An explicit hard break (two trailing spaces, or a
 trailing backslash) becomes `<br>`. An image alone on its line is never joined into the text above
-it. Code fences and table rows are not touched.
+it. Code inside fences and table rows are not touched.
+
+**Code fences.** Notion's parser reads only fences of three backticks. It does not recognise `~~~`
+or a longer run of backticks, and it picks a language itself, usually JavaScript, when the label is
+missing, is followed by other words, or is one it does not know. The tool rewrites each fence as
+three backticks and gives it Notion's name for its language. Common short names such as `yml`,
+`sh`, and `console` are mapped to Notion's; anything Notion does not know, or no label, becomes
+`plain text`. The code inside is not changed.
+
+The tool follows CommonMark's rule for where a fence ends: only a run of the same character, at
+least as long as the one that opened it. A ````` ```` ````` fence can therefore show a ```` ``` ````
+example, and nothing inside it is joined, linked, or uploaded.
+
+Notion's parser cannot hold such code, though: it ends a code block at any line that starts with
+three backticks, and its own Markdown export has the same problem. So, as with a local image, the
+tool sends a placeholder in its place and then inserts the real code block through the block API.
+This works under list items and inside alerts too, and costs a few extra requests for each such
+block.
 
 **Alerts.** GitHub shows a block quote whose first line is `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,
 `[!WARNING]`, or `[!CAUTION]` as a coloured
@@ -645,7 +662,8 @@ logs are kept or shared.
 ## How Notion treats Markdown
 
 These results were checked against the live API. Pipe tables become table blocks. Two-space nesting
-becomes nested list items. Task lists become to-do blocks. Fenced code keeps its language. `---`
+becomes nested list items. Task lists become to-do blocks. Fenced code keeps a language Notion
+knows. `---`
 becomes a divider. Bold, italic, strikethrough, and inline code survive. H5 and H6 become heading 4,
 as documented.
 

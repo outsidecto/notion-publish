@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "fence"
+
 module NotionPublish
   # Finds local image references in a Markdown body.
   #
@@ -13,7 +15,6 @@ module NotionPublish
   # image is swapped for a sentinel paragraph before publishing. The sentinel is
   # located afterwards and the real image block is inserted in its place.
   class Media
-    FENCE = /\A\s*(?:`{3,}|~{3,})/
     # An image alone on its line. Only these can become blocks: Notion has no
     # inline image, so an image sitting inside a sentence has nowhere to go.
     STANDALONE = /\A\s*!\[([^\]]*)\]\(\s*([^)\s]+?)\s*(?:"[^"]*")?\s*\)\s*\z/
@@ -47,15 +48,11 @@ module NotionPublish
     private
 
     def rewrite
-      in_fence = false
+      fence = Fence.new
       index = 0
 
       lines = @body.lines.map do |line|
-        if line.match?(FENCE)
-          in_fence = !in_fence
-          next line
-        end
-        next line if in_fence
+        next line if fence.step(line)
 
         match = line.match(STANDALONE)
         if match && local?(match[2])

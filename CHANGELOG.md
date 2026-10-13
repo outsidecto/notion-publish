@@ -11,6 +11,20 @@ All notable changes to this project are recorded here. The format follows
 - GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are published
   as Notion callouts with an icon and colour for each type. Notion showed them as quotes containing
   the marker.
+- A code block that shows a fence, such as a ```` ``` ```` example inside a ````` ```` ````` fence,
+  is inserted through the block API. Notion's Markdown cannot hold it.
+
+### Fixed
+
+- A code fence now ends only where CommonMark ends it: a run of the same character, at least as
+  long as the opening one. A ```` ``` ```` line inside a ````` ```` ````` or `~~~` fence used to
+  end it, so the code after it was joined into paragraphs, and links and images in it were
+  rewritten.
+- Fences are sent in the one form Notion's parser reads: three backticks and Notion's name for the
+  language. Tilde fences and longer backtick fences used to arrive as text, and a label with more
+  than one word was ignored.
+- A fence with no label, or one Notion does not know such as `console`, is labelled `plain text`
+  or mapped to Notion's name. Notion used to highlight it as JavaScript.
 
 ## [0.1.0] - 2026-09-26
 
